@@ -11,7 +11,9 @@ A fullstack workout tracking application that empowers users to create custom wo
 
 ## Tech Stack
 
-*Coming soon - fullstack implementation details*
+- **Frontend**: React + TypeScript
+- **Backend**: Go + GraphQL
+- **Database**: PostgreSQL
 
 ## Getting Started
 
