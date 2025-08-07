@@ -1,107 +1,136 @@
 .app {
   min-height: 100vh;
-  background: #f8fafc;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   color: #1e293b;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
 .app-header {
   text-align: center;
-  padding: 2rem 1rem;
+  padding: 3rem 1rem;
   background: white;
   border-bottom: 1px solid #e2e8f0;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 .app-header h1 {
-  font-size: 2.5rem;
+  font-size: 3rem;
   margin: 0;
-  font-weight: 700;
-  color: #1e293b;
+  font-weight: 800;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .app-header p {
-  font-size: 1.1rem;
-  margin: 0.5rem 0 0 0;
+  font-size: 1.2rem;
+  margin: 0.75rem 0 0 0;
   color: #64748b;
+  font-weight: 500;
 }
 
 .app-main {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 2rem;
+  padding: 3rem 2rem;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 2rem;
+  gap: 3rem;
   align-items: start;
 }
 
 .left-panel, .right-panel {
   background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 2.5rem;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #f1f5f9;
+  transition: all 0.2s ease;
+}
+
+.left-panel:hover, .right-panel:hover {
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.12);
+  transform: translateY(-2px);
 }
 
 .workout-section h2, .workouts-section h2, .current-workout h2 {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.5rem;
-  font-weight: 600;
+  margin: 0 0 2rem 0;
+  font-size: 1.75rem;
+  font-weight: 700;
   color: #1e293b;
-  border-bottom: 2px solid #3b82f6;
-  padding-bottom: 0.5rem;
+  position: relative;
+}
+
+.workout-section h2::after, .workouts-section h2::after, .current-workout h2::after {
+  content: '';
+  position: absolute;
+  bottom: -0.5rem;
+  left: 0;
+  width: 3rem;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6 0%, #1d4ed8 100%);
+  border-radius: 2px;
 }
 
 .create-workout {
   display: flex;
   gap: 1rem;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
 }
 
 .create-workout input {
   flex: 1;
-  padding: 0.75rem 1rem;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
   font-size: 1rem;
   background: white;
   color: #374151;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition: all 0.2s ease;
+  font-weight: 500;
 }
 
 .create-workout input:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+  transform: translateY(-1px);
 }
 
 .create-workout button {
-  padding: 0.75rem 1.5rem;
-  background: #10b981;
+  padding: 1rem 1.5rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
   white-space: nowrap;
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.2);
 }
 
 .create-workout button:hover {
-  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+}
+
+.create-workout button:active {
+  transform: translateY(0);
 }
 
 .empty-state {
   text-align: center;
   color: #6b7280;
   font-style: italic;
-  padding: 2rem;
-  background: #f9fafb;
-  border-radius: 8px;
+  padding: 3rem 2rem;
+  background: #f8fafc;
+  border-radius: 12px;
   border: 2px dashed #d1d5db;
+  font-size: 1.1rem;
 }
 
 .workouts-grid {
@@ -112,58 +141,64 @@
 
 .workout-card {
   background: #f8fafc;
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid #e2e8f0;
-  transition: all 0.2s;
+  border-radius: 12px;
+  padding: 1.75rem;
+  border: 2px solid #e2e8f0;
+  transition: all 0.2s ease;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  cursor: pointer;
 }
 
 .workout-card:hover {
   background: #f1f5f9;
-  border-color: #cbd5e1;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+  border-color: #3b82f6;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
 }
 
 .workout-card h3 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.2rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.3rem;
   color: #1e293b;
+  font-weight: 600;
 }
 
 .workout-card p {
   margin: 0;
   color: #64748b;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  font-weight: 500;
 }
 
 .workout-card button {
-  padding: 0.5rem 1rem;
-  background: #3b82f6;
+  padding: 0.75rem 1.25rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
   font-size: 0.9rem;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2);
 }
 
 .workout-card button:hover {
-  background: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
 }
 
 .add-exercise {
-  margin-bottom: 2rem;
+  margin-bottom: 2.5rem;
 }
 
 .add-exercise h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.3rem;
+  margin: 0 0 1.5rem 0;
+  font-size: 1.4rem;
   color: #1e293b;
+  font-weight: 600;
 }
 
 .exercise-form {
@@ -174,40 +209,45 @@
 }
 
 .exercise-form input {
-  padding: 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  font-size: 0.9rem;
+  padding: 0.875rem;
+  border: 2px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 0.95rem;
   background: white;
   color: #374151;
-  transition: border-color 0.2s;
+  transition: all 0.2s ease;
+  font-weight: 500;
 }
 
 .exercise-form input:focus {
   outline: none;
   border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .exercise-form button {
-  padding: 0.75rem 1rem;
-  background: #f59e0b;
+  padding: 0.875rem 1.25rem;
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
   white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
 }
 
 .exercise-form button:hover {
-  background: #d97706;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
 }
 
 .exercises-list h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.3rem;
+  margin: 0 0 1.5rem 0;
+  font-size: 1.4rem;
   color: #1e293b;
+  font-weight: 600;
 }
 
 .exercises-grid {
@@ -218,24 +258,34 @@
 
 .exercise-card {
   background: #f8fafc;
-  border-radius: 8px;
-  padding: 1.5rem;
-  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.75rem;
+  border: 2px solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: all 0.2s ease;
+}
+
+.exercise-card:hover {
+  background: #f1f5f9;
+  border-color: #3b82f6;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
 }
 
 .exercise-card h4 {
-  margin: 0 0 0.25rem 0;
-  font-size: 1.1rem;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
   color: #1e293b;
+  font-weight: 600;
 }
 
 .exercise-card p {
   margin: 0.25rem 0;
   color: #64748b;
   font-size: 0.9rem;
+  font-weight: 500;
 }
 
 .exercise-info {
@@ -246,11 +296,17 @@
   text-align: right;
   color: #6b7280;
   font-size: 0.85rem;
+  font-weight: 600;
 }
 
 @media (max-width: 1024px) {
   .app-main {
     grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+  
+  .left-panel, .right-panel {
+    padding: 2rem;
   }
 }
 
@@ -268,7 +324,7 @@
   .exercise-card {
     flex-direction: column;
     align-items: flex-start;
-    gap: 0.5rem;
+    gap: 0.75rem;
   }
   
   .exercise-stats {
@@ -276,10 +332,15 @@
   }
   
   .app-header h1 {
-    font-size: 2rem;
+    font-size: 2.5rem;
   }
   
   .app-main {
-    padding: 1rem;
+    padding: 2rem 1rem;
+  }
+  
+  .create-workout {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
