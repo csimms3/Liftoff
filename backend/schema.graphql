@@ -1,0 +1,126 @@
+type Workout {
+  id: ID!
+  name: String!
+  exercises: [Exercise!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Exercise {
+  id: ID!
+  name: String!
+  sets: Int!
+  reps: Int!
+  weight: Float!
+  workoutId: ID!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type WorkoutSession {
+  id: ID!
+  workoutId: ID!
+  workout: Workout!
+  startedAt: String!
+  endedAt: String
+  isActive: Boolean!
+  exercises: [SessionExercise!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type SessionExercise {
+  id: ID!
+  sessionId: ID!
+  exerciseId: ID!
+  exercise: Exercise!
+  sets: [ExerciseSet!]!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type ExerciseSet {
+  id: ID!
+  sessionExerciseId: ID!
+  reps: Int!
+  weight: Float!
+  completed: Boolean!
+  notes: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Query {
+  workouts: [Workout!]!
+  workout(id: ID!): Workout
+  activeSession: WorkoutSession
+  session(id: ID!): WorkoutSession
+  sessions: [WorkoutSession!]!
+}
+
+type Mutation {
+  createWorkout(input: CreateWorkoutInput!): Workout!
+  updateWorkout(id: ID!, input: UpdateWorkoutInput!): Workout!
+  deleteWorkout(id: ID!): Boolean!
+  
+  addExercise(input: AddExerciseInput!): Exercise!
+  updateExercise(id: ID!, input: UpdateExerciseInput!): Exercise!
+  deleteExercise(id: ID!): Boolean!
+  
+  startSession(workoutId: ID!): WorkoutSession!
+  endSession(id: ID!): WorkoutSession!
+  
+  addSessionExercise(input: AddSessionExerciseInput!): SessionExercise!
+  updateSessionExercise(id: ID!, input: UpdateSessionExerciseInput!): SessionExercise!
+  deleteSessionExercise(id: ID!): Boolean!
+  
+  addExerciseSet(input: AddExerciseSetInput!): ExerciseSet!
+  updateExerciseSet(id: ID!, input: UpdateExerciseSetInput!): ExerciseSet!
+  deleteExerciseSet(id: ID!): Boolean!
+}
+
+input CreateWorkoutInput {
+  name: String!
+}
+
+input UpdateWorkoutInput {
+  name: String
+}
+
+input AddExerciseInput {
+  name: String!
+  sets: Int!
+  reps: Int!
+  weight: Float!
+  workoutId: ID!
+}
+
+input UpdateExerciseInput {
+  name: String
+  sets: Int
+  reps: Int
+  weight: Float
+}
+
+input AddSessionExerciseInput {
+  sessionId: ID!
+  exerciseId: ID!
+}
+
+input UpdateSessionExerciseInput {
+  exerciseId: ID
+}
+
+input AddExerciseSetInput {
+  sessionExerciseId: ID!
+  reps: Int!
+  weight: Float!
+  notes: String
+}
+
+input UpdateExerciseSetInput {
+  reps: Int
+  weight: Float
+  completed: Boolean
+  notes: String
+}
