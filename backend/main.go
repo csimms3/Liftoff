@@ -5,10 +5,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gin-gonic/gin"
 	"liftoff/backend/database"
 	"liftoff/backend/models"
 	"liftoff/backend/repository"
+
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -31,12 +32,12 @@ func main() {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
-		
+
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
 		}
-		
+
 		c.Next()
 	})
 
@@ -171,7 +172,7 @@ func main() {
 
 	log.Printf("Server starting on port %s", port)
 	log.Printf("API available at http://localhost:%s/api", port)
-	
+
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal("Failed to start server:", err)
 	}
