@@ -11,6 +11,15 @@ body {
   color: #1e293b;
 }
 
+/* Ensure all inputs have proper text color */
+input, textarea, select {
+  color: #1e293b !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #94a3b8 !important;
+}
+
 .app {
   min-height: 100vh;
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
@@ -133,12 +142,17 @@ body {
   font-size: 1rem;
   transition: all 0.2s ease;
   background: white;
+  color: #1e293b; /* Explicit text color */
 }
 
 .input-group input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.input-group input::placeholder {
+  color: #94a3b8; /* Placeholder text color */
 }
 
 /* Buttons */
@@ -301,12 +315,17 @@ body {
   font-size: 1rem;
   transition: all 0.2s ease;
   background: white;
+  color: #1e293b; /* Explicit text color */
 }
 
 .exercise-form input:focus {
   outline: none;
   border-color: #3b82f6;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.exercise-form input::placeholder {
+  color: #94a3b8; /* Placeholder text color */
 }
 
 .exercise-inputs {
