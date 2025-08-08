@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
@@ -12,11 +13,13 @@ import (
 )
 
 type WorkoutRepository struct {
-	db *pgxpool.Pool
+	db        *pgxpool.Pool
+	sqlite    *sql.DB
+	useSQLite bool
 }
 
-func NewWorkoutRepository(db *pgxpool.Pool) *WorkoutRepository {
-	return &WorkoutRepository{db: db}
+func NewWorkoutRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *WorkoutRepository {
+	return &WorkoutRepository{db: db, sqlite: sqlite, useSQLite: useSQLite}
 }
 
 // Workout operations
@@ -24,6 +27,13 @@ func (r *WorkoutRepository) CreateWorkout(ctx context.Context, name string) (*mo
 	id := uuid.New().String()
 	now := time.Now()
 
+	if r.useSQLite {
+		return r.createWorkoutSQLite(ctx, id, name, now)
+	}
+	return r.createWorkoutPostgres(ctx, id, name, now)
+}
+
+func (r *WorkoutRepository) createWorkoutPostgres(ctx context.Context, id, name string, now time.Time) (*models.Workout, error) {
 	query := `
 		INSERT INTO workouts (id, name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4)
@@ -41,7 +51,33 @@ func (r *WorkoutRepository) CreateWorkout(ctx context.Context, name string) (*mo
 	return &workout, nil
 }
 
+func (r *WorkoutRepository) createWorkoutSQLite(ctx context.Context, id, name string, now time.Time) (*models.Workout, error) {
+	query := `
+		INSERT INTO workouts (id, name, created_at, updated_at)
+		VALUES (?, ?, ?, ?)
+	`
+
+	_, err := r.sqlite.ExecContext(ctx, query, id, name, now, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create workout: %w", err)
+	}
+
+	return &models.Workout{
+		ID:        id,
+		Name:      name,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}, nil
+}
+
 func (r *WorkoutRepository) GetWorkouts(ctx context.Context) ([]*models.Workout, error) {
+	if r.useSQLite {
+		return r.getWorkoutsSQLite(ctx)
+	}
+	return r.getWorkoutsPostgres(ctx)
+}
+
+func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context) ([]*models.Workout, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
 		FROM workouts
@@ -49,6 +85,32 @@ func (r *WorkoutRepository) GetWorkouts(ctx context.Context) ([]*models.Workout,
 	`
 
 	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workouts: %w", err)
+	}
+	defer rows.Close()
+
+	var workouts []*models.Workout
+	for rows.Next() {
+		var workout models.Workout
+		err := rows.Scan(&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan workout: %w", err)
+		}
+		workouts = append(workouts, &workout)
+	}
+
+	return workouts, nil
+}
+
+func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Workout, error) {
+	query := `
+		SELECT id, name, created_at, updated_at
+		FROM workouts
+		ORDER BY created_at DESC
+	`
+
+	rows, err := r.sqlite.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workouts: %w", err)
 	}
