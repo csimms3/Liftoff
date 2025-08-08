@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <defs>
+    <linearGradient id="themeGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <mask id="emoji-mask" maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
+      <rect width="24" height="24" fill="black"/>
+      <text x="12" y="17"
+            font-family="'Apple Color Emoji','Segoe UI Emoji','Noto Color Emoji','Segoe UI Symbol','Noto Sans Symbols 2','Arial Unicode MS',sans-serif"
+            font-size="16"
+            text-anchor="middle"
+            fill="white">🏋️</text>
+    </mask>
+  </defs>
+  <!-- Gradient clipped to the emoji, background remains transparent -->
+  <rect width="24" height="24" fill="url(#themeGradient)" mask="url(#emoji-mask)"/>
+</svg>
