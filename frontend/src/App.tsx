@@ -1,45 +1,7 @@
 import { useState, useEffect } from 'react'
 import './App.css'
-
-interface Exercise {
-  id: string
-  name: string
-  sets: number
-  reps: number
-  weight: number
-}
-
-interface Workout {
-  id: string
-  name: string
-  exercises: Exercise[]
-  createdAt: string
-}
-
-interface WorkoutSession {
-  id: string
-  workoutId: string
-  workout: Workout
-  startedAt: string
-  endedAt?: string
-  isActive: boolean
-  exercises: SessionExercise[]
-}
-
-interface SessionExercise {
-  id: string
-  exerciseId: string
-  exercise: Exercise
-  sets: ExerciseSet[]
-}
-
-interface ExerciseSet {
-  id: string
-  reps: number
-  weight: number
-  completed: boolean
-  notes?: string
-}
+import { apiService } from './api'
+import type { Workout, Exercise, WorkoutSession, SessionExercise, ExerciseSet } from './api'
 
 interface ProgressData {
   exerciseName: string
@@ -54,6 +16,8 @@ function App() {
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
   const [progressData, setProgressData] = useState<ProgressData[]>([])
   const [view, setView] = useState<'workouts' | 'session' | 'progress'>('workouts')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   
   const [newWorkoutName, setNewWorkoutName] = useState('')
   const [newExercise, setNewExercise] = useState({
@@ -63,78 +27,87 @@ function App() {
     weight: 0
   })
 
-  // Load data from localStorage on mount
+  // Load data from API on mount
   useEffect(() => {
-    const savedWorkouts = localStorage.getItem('liftoff-workouts')
-    const savedSessions = localStorage.getItem('liftoff-sessions')
-    const savedProgress = localStorage.getItem('liftoff-progress')
-    
-    if (savedWorkouts) {
-      setWorkouts(JSON.parse(savedWorkouts))
+    const loadData = async () => {
+      try {
+        await loadWorkouts()
+        await loadActiveSession()
+      } catch (error) {
+        setError('Failed to load initial data')
+      }
     }
-    if (savedSessions) {
-      const sessions = JSON.parse(savedSessions)
-      const active = sessions.find((s: WorkoutSession) => s.isActive)
-      if (active) setActiveSession(active)
-    }
-    if (savedProgress) {
-      setProgressData(JSON.parse(savedProgress))
-    }
+    loadData()
   }, [])
 
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    localStorage.setItem('liftoff-workouts', JSON.stringify(workouts))
-  }, [workouts])
-
-  useEffect(() => {
-    if (activeSession) {
-      const sessions = JSON.parse(localStorage.getItem('liftoff-sessions') || '[]')
-      const updatedSessions = sessions.filter((s: WorkoutSession) => s.id !== activeSession.id)
-      updatedSessions.push(activeSession)
-      localStorage.setItem('liftoff-sessions', JSON.stringify(updatedSessions))
+  const loadWorkouts = async () => {
+    try {
+      setLoading(true)
+      const data = await apiService.getWorkouts()
+      setWorkouts(data)
+    } catch (err) {
+      setError('Failed to load workouts')
+    } finally {
+      setLoading(false)
     }
-  }, [activeSession])
-
-  const createWorkout = () => {
-    if (!newWorkoutName.trim()) return
-    
-    const workout: Workout = {
-      id: Date.now().toString(),
-      name: newWorkoutName.trim(),
-      exercises: [],
-      createdAt: new Date().toISOString()
-    }
-    
-    setWorkouts([...workouts, workout])
-    setNewWorkoutName('')
   }
 
-  const addExercise = () => {
+  const loadActiveSession = async () => {
+    try {
+      const session = await apiService.getActiveSession()
+      setActiveSession(session)
+    } catch (err) {
+      // Silent fail for active session - it's optional
+    }
+  }
+
+  const createWorkout = async () => {
+    if (!newWorkoutName.trim()) return
+    
+    try {
+      setLoading(true)
+      const workout = await apiService.createWorkout(newWorkoutName.trim())
+      setWorkouts([...workouts, workout])
+      setNewWorkoutName('')
+    } catch (err) {
+      setError('Failed to create workout')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const addExercise = async () => {
     if (!newExercise.name.trim() || !currentWorkout) return
     
-    const exercise: Exercise = {
-      id: Date.now().toString(),
-      name: newExercise.name.trim(),
-      sets: newExercise.sets,
-      reps: newExercise.reps,
-      weight: newExercise.weight
+    try {
+      setLoading(true)
+      const exercise = await apiService.createExercise({
+        name: newExercise.name.trim(),
+        sets: newExercise.sets,
+        reps: newExercise.reps,
+        weight: newExercise.weight,
+        workoutId: currentWorkout.id
+      })
+      
+      const updatedWorkout = {
+        ...currentWorkout,
+        exercises: [...currentWorkout.exercises, exercise]
+      }
+      
+      setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w))
+      setCurrentWorkout(updatedWorkout)
+      
+      setNewExercise({
+        name: '',
+        sets: 3,
+        reps: 10,
+        weight: 0
+      })
+    } catch (err) {
+      setError('Failed to add exercise')
+    } finally {
+      setLoading(false)
     }
-    
-    const updatedWorkout = {
-      ...currentWorkout,
-      exercises: [...currentWorkout.exercises, exercise]
-    }
-    
-    setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w))
-    setCurrentWorkout(updatedWorkout)
-    
-    setNewExercise({
-      name: '',
-      sets: 3,
-      reps: 10,
-      weight: 0
-    })
   }
 
   const startWorkout = (workout: Workout) => {
@@ -142,71 +115,82 @@ function App() {
     setView('workouts')
   }
 
-  const completeSet = (sessionExerciseId: string, setIndex: number) => {
+  const completeSet = async (sessionExerciseId: string, setIndex: number) => {
     if (!activeSession) return
     
-    const updatedSession = {
-      ...activeSession,
-      exercises: activeSession.exercises.map(ex => {
-        if (ex.id === sessionExerciseId) {
-          const updatedSets = [...ex.sets]
-          updatedSets[setIndex] = { ...updatedSets[setIndex], completed: true }
-          return { ...ex, sets: updatedSets }
+    try {
+      setLoading(true)
+      await apiService.completeSet(sessionExerciseId, setIndex)
+      loadActiveSession() // Reload active session to update completed sets
+    } catch (err) {
+      setError('Failed to complete set')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const endSession = async () => {
+    if (!activeSession) return
+    
+    try {
+      setLoading(true)
+      await apiService.endSession(activeSession.id)
+      loadActiveSession() // Reload active session to update its state
+      loadProgressData() // Reload progress data
+      setView('workouts')
+    } catch (err) {
+      setError('Failed to end session')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadProgressData = async () => {
+    try {
+      const data = await apiService.getProgressData()
+      setProgressData(data)
+    } catch (err) {
+      setError('Failed to load progress data')
+    }
+  }
+
+  const deleteWorkout = async (workoutId: string) => {
+    if (window.confirm('Are you sure you want to delete this workout?')) {
+      try {
+        setLoading(true)
+        await apiService.deleteWorkout(workoutId)
+        setWorkouts(workouts.filter(w => w.id !== workoutId))
+        if (currentWorkout?.id === workoutId) {
+          setCurrentWorkout(null)
         }
-        return ex
-      })
-    }
-    
-    setActiveSession(updatedSession)
-  }
-
-  const endSession = () => {
-    if (!activeSession) return
-    
-    const endedSession = {
-      ...activeSession,
-      isActive: false,
-      endedAt: new Date().toISOString()
-    }
-    
-    // Calculate progress data
-    const newProgress: ProgressData[] = []
-    activeSession.exercises.forEach(ex => {
-      const maxWeight = Math.max(...ex.sets.map(s => s.weight))
-      const totalVolume = ex.sets.reduce((sum, s) => sum + (s.weight * s.reps), 0)
-      
-      newProgress.push({
-        exerciseName: ex.exercise.name,
-        date: new Date().toISOString().split('T')[0],
-        maxWeight,
-        totalVolume
-      })
-    })
-    
-    setProgressData([...progressData, ...newProgress])
-    localStorage.setItem('liftoff-progress', JSON.stringify([...progressData, ...newProgress]))
-    
-    setActiveSession(null)
-    setView('workouts')
-  }
-
-  const deleteWorkout = (workoutId: string) => {
-    setWorkouts(workouts.filter(w => w.id !== workoutId))
-    if (currentWorkout?.id === workoutId) {
-      setCurrentWorkout(null)
+      } catch (err) {
+        setError('Failed to delete workout')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
-  const deleteExercise = (exerciseId: string) => {
+  const deleteExercise = async (exerciseId: string) => {
     if (!currentWorkout) return
     
-    const updatedWorkout = {
-      ...currentWorkout,
-      exercises: currentWorkout.exercises.filter(e => e.id !== exerciseId)
+    if (window.confirm('Are you sure you want to delete this exercise?')) {
+      try {
+        setLoading(true)
+        await apiService.deleteExercise(exerciseId)
+        const updatedWorkout = {
+          ...currentWorkout,
+          exercises: currentWorkout.exercises.filter(e => e.id !== exerciseId)
+        }
+        
+        setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w))
+        setCurrentWorkout(updatedWorkout)
+      } catch (err) {
+        setError('Failed to delete exercise')
+      } finally {
+        setLoading(false)
+      }
     }
-    
-    setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w))
-    setCurrentWorkout(updatedWorkout)
   }
 
   return (
@@ -238,6 +222,13 @@ function App() {
       </header>
 
       <main className="app-main">
+        {error && (
+          <div className="error-banner">
+            <p>{error}</p>
+            <button onClick={() => setError(null)}>×</button>
+          </div>
+        )}
+
         {view === 'workouts' && (
           <div className="workouts-view">
             <div className="left-panel">
@@ -246,20 +237,29 @@ function App() {
                 <div className="input-group">
                   <input
                     type="text"
-                    placeholder="Workout name (e.g., Push Day)"
+                    placeholder="Workout name..."
                     value={newWorkoutName}
                     onChange={(e) => setNewWorkoutName(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && createWorkout()}
+                    disabled={loading}
                   />
-                  <button onClick={createWorkout} className="btn-primary">
-                    Create Workout
+                  <button 
+                    className="btn-primary"
+                    onClick={createWorkout}
+                    disabled={loading || !newWorkoutName.trim()}
+                  >
+                    {loading ? 'Creating...' : 'Create'}
                   </button>
                 </div>
               </div>
 
               <div className="workouts-section">
                 <h2>Your Workouts</h2>
-                {workouts.length === 0 ? (
+                {loading ? (
+                  <div className="loading-state">
+                    <p>Loading workouts...</p>
+                  </div>
+                ) : workouts.length === 0 ? (
                   <p className="empty-state">No workouts yet. Create your first workout above!</p>
                 ) : (
                   <div className="workout-cards">
@@ -268,27 +268,21 @@ function App() {
                         <div className="workout-header">
                           <h3>{workout.name}</h3>
                           <button 
-                            onClick={() => deleteWorkout(workout.id)}
                             className="btn-delete"
-                            title="Delete workout"
+                            onClick={() => deleteWorkout(workout.id)}
+                            disabled={loading}
                           >
                             ×
                           </button>
                         </div>
                         <p className="workout-stats">
-                          {workout.exercises.length} exercises
+                          {workout.exercises?.length || 0} exercises
                         </p>
                         <div className="workout-actions">
                           <button 
-                            onClick={() => setCurrentWorkout(workout)}
-                            className="btn-secondary"
-                          >
-                            Edit
-                          </button>
-                          <button 
                             onClick={() => startWorkout(workout)}
                             className="btn-primary"
-                            disabled={false}
+                            disabled={loading}
                           >
                             {currentWorkout?.id === workout.id ? 'Continue' : 'Start'}
                           </button>
@@ -309,9 +303,10 @@ function App() {
                     <div className="exercise-form">
                       <input
                         type="text"
-                        placeholder="Exercise name"
+                        placeholder="Exercise name..."
                         value={newExercise.name}
                         onChange={(e) => setNewExercise({...newExercise, name: e.target.value})}
+                        disabled={loading}
                       />
                       <div className="exercise-inputs">
                         <input
@@ -319,57 +314,57 @@ function App() {
                           placeholder="Sets"
                           value={newExercise.sets}
                           onChange={(e) => setNewExercise({...newExercise, sets: parseInt(e.target.value) || 0})}
+                          disabled={loading}
                         />
                         <input
                           type="number"
                           placeholder="Reps"
                           value={newExercise.reps}
                           onChange={(e) => setNewExercise({...newExercise, reps: parseInt(e.target.value) || 0})}
+                          disabled={loading}
                         />
                         <input
                           type="number"
                           placeholder="Weight (lbs)"
                           value={newExercise.weight}
                           onChange={(e) => setNewExercise({...newExercise, weight: parseFloat(e.target.value) || 0})}
+                          disabled={loading}
                         />
                       </div>
-                      <button onClick={addExercise} className="btn-primary">
-                        Add Exercise
+                      <button 
+                        className="btn-primary"
+                        onClick={addExercise}
+                        disabled={loading || !newExercise.name.trim()}
+                      >
+                        {loading ? 'Adding...' : 'Add Exercise'}
                       </button>
                     </div>
                   </div>
-                  <div className="exercises-list">
-                    <h3>Exercises</h3>
-                    {currentWorkout.exercises.length === 0 ? (
-                      <p className="empty-state">No exercises added yet. Add your first exercise above!</p>
-                    ) : (
-                      <div className="exercise-cards">
-                        {currentWorkout.exercises.map(exercise => (
-                          <div key={exercise.id} className="exercise-card">
-                            <div className="exercise-header">
-                              <h4>{exercise.name}</h4>
-                              <button 
-                                onClick={() => deleteExercise(exercise.id)}
-                                className="btn-delete-small"
-                                title="Delete exercise"
-                              >
-                                ×
-                              </button>
-                            </div>
-                            <div className="exercise-stats">
-                              <span>{`${exercise.sets} sets × ${exercise.reps} reps`}</span>
-                              {exercise.weight > 0 && <span>{`${exercise.weight} lbs`}</span>}
-                            </div>
-                          </div>
-                        ))}
+
+                  <div className="exercise-cards">
+                    {currentWorkout.exercises?.map(exercise => (
+                      <div key={exercise.id} className="exercise-card">
+                        <div className="exercise-header">
+                          <h4>{exercise.name}</h4>
+                          <button 
+                            className="btn-delete-small"
+                            onClick={() => deleteExercise(exercise.id)}
+                            disabled={loading}
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="exercise-stats">
+                          <span>{`${exercise.sets} sets × ${exercise.reps} reps`}</span>
+                          {exercise.weight > 0 && <span>{`${exercise.weight} lbs`}</span>}
+                        </div>
                       </div>
-                    )}
+                    )) || <p>No exercises yet</p>}
                   </div>
                 </div>
               ) : (
-                <div className="current-workout">
-                  <h2>Select a Workout</h2>
-                  <p className="empty-state">Choose a workout from the left panel to start tracking your exercises.</p>
+                <div className="empty-state">
+                  <p>Select a workout to add exercises</p>
                 </div>
               )}
             </div>
@@ -416,7 +411,11 @@ function App() {
         {view === 'progress' && (
           <div className="progress-view">
             <h2>Progress Tracking</h2>
-            {progressData.length === 0 ? (
+            {loading ? (
+              <p>Loading progress data...</p>
+            ) : error ? (
+              <p className="error-message">{error}</p>
+            ) : progressData.length === 0 ? (
               <p className="empty-state">No progress data yet. Complete some workouts to see your progress!</p>
             ) : (
               <div className="progress-charts">
