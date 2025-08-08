@@ -106,7 +106,7 @@ function App() {
       createdAt: new Date().toISOString()
     }
     
-    setWorkouts([workout, ...workouts])
+    setWorkouts([...workouts, workout])
     setNewWorkoutName('')
   }
 
@@ -138,33 +138,8 @@ function App() {
   }
 
   const startWorkout = (workout: Workout) => {
-    if (activeSession) {
-      // End current session first
-      const endedSession = { ...activeSession, isActive: false, endedAt: new Date().toISOString() }
-      setActiveSession(null)
-    }
-    
-    const session: WorkoutSession = {
-      id: Date.now().toString(),
-      workoutId: workout.id,
-      workout: workout,
-      startedAt: new Date().toISOString(),
-      isActive: true,
-      exercises: workout.exercises.map(exercise => ({
-        id: Date.now().toString() + Math.random(),
-        exerciseId: exercise.id,
-        exercise: exercise,
-        sets: Array.from({ length: exercise.sets }, (_, i) => ({
-          id: Date.now().toString() + i,
-          reps: exercise.reps,
-          weight: exercise.weight,
-          completed: false
-        }))
-      }))
-    }
-    
-    setActiveSession(session)
-    setView('session')
+    setCurrentWorkout(workout)
+    setView('workouts')
   }
 
   const completeSet = (sessionExerciseId: string, setIndex: number) => {
@@ -313,9 +288,9 @@ function App() {
                           <button 
                             onClick={() => startWorkout(workout)}
                             className="btn-primary"
-                            disabled={activeSession?.isActive}
+                            disabled={false}
                           >
-                            {activeSession?.workoutId === workout.id ? 'Continue' : 'Start'}
+                            {currentWorkout?.id === workout.id ? 'Continue' : 'Start'}
                           </button>
                         </div>
                       </div>
@@ -328,7 +303,7 @@ function App() {
             <div className="right-panel">
               {currentWorkout ? (
                 <div className="current-workout">
-                  <h2>Edit Workout: {currentWorkout.name}</h2>
+                  <h2>Current Workout: {currentWorkout.name}</h2>
                   <div className="add-exercise">
                     <h3>Add Exercise</h3>
                     <div className="exercise-form">
@@ -381,10 +356,10 @@ function App() {
                                 ×
                               </button>
                             </div>
-                            <p className="exercise-stats">
-                              {exercise.sets} sets × {exercise.reps} reps
-                              {exercise.weight > 0 && ` @ ${exercise.weight} lbs`}
-                            </p>
+                            <div className="exercise-stats">
+                              <span>{`${exercise.sets} sets × ${exercise.reps} reps`}</span>
+                              {exercise.weight > 0 && <span>{`${exercise.weight} lbs`}</span>}
+                            </div>
                           </div>
                         ))}
                       </div>
