@@ -21,8 +21,8 @@ func main() {
 	defer db.Close()
 
 	// Initialize repositories
-	workoutRepo := repository.NewWorkoutRepository(db.GetPool())
-	sessionRepo := repository.NewSessionRepository(db.GetPool())
+	workoutRepo := repository.NewWorkoutRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
+	sessionRepo := repository.NewSessionRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 
 	// Setup Gin router
 	r := gin.Default()
@@ -81,6 +81,16 @@ func main() {
 			c.JSON(http.StatusOK, workout)
 		})
 
+		api.DELETE("/workouts/:id", func(c *gin.Context) {
+			id := c.Param("id")
+			err := workoutRepo.DeleteWorkout(c.Request.Context(), id)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Workout deleted"})
+		})
+
 		// Exercise routes
 		api.POST("/exercises", func(c *gin.Context) {
 			var input struct {
@@ -109,6 +119,16 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusCreated, exercise)
+		})
+
+		api.DELETE("/exercises/:id", func(c *gin.Context) {
+			id := c.Param("id")
+			err := workoutRepo.DeleteExercise(c.Request.Context(), id)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Exercise deleted"})
 		})
 
 		api.GET("/workouts/:id/exercises", func(c *gin.Context) {
@@ -156,6 +176,35 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusOK, session)
+		})
+
+		// Exercise set routes
+		api.PUT("/exercise-sets/:id/complete", func(c *gin.Context) {
+			id := c.Param("id")
+			var input struct {
+				SetIndex int `json:"setIndex"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), id, input.SetIndex)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
+		})
+
+		// Progress routes
+		api.GET("/progress", func(c *gin.Context) {
+			progress, err := sessionRepo.GetProgressData(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, progress)
 		})
 	}
 

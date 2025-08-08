@@ -2,21 +2,25 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"time"
 
 	"liftoff/backend/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type SessionRepository struct {
-	db *pgxpool.Pool
+	db        *pgxpool.Pool
+	sqlite    *sql.DB
+	useSQLite bool
 }
 
-func NewSessionRepository(db *pgxpool.Pool) *SessionRepository {
-	return &SessionRepository{db: db}
+func NewSessionRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *SessionRepository {
+	return &SessionRepository{db: db, sqlite: sqlite, useSQLite: useSQLite}
 }
 
 // WorkoutSession operations
@@ -43,6 +47,13 @@ func (r *SessionRepository) CreateSession(ctx context.Context, workoutID string)
 }
 
 func (r *SessionRepository) GetActiveSession(ctx context.Context) (*models.WorkoutSession, error) {
+	if r.useSQLite {
+		return r.getActiveSessionSQLite(ctx)
+	}
+	return r.getActiveSessionPostgres(ctx)
+}
+
+func (r *SessionRepository) getActiveSessionPostgres(ctx context.Context) (*models.WorkoutSession, error) {
 	query := `
 		SELECT id, workout_id, started_at, ended_at, is_active, created_at, updated_at
 		FROM workout_sessions
@@ -57,6 +68,33 @@ func (r *SessionRepository) GetActiveSession(ctx context.Context) (*models.Worko
 		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
 	)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil // No active session found
+		}
+		return nil, fmt.Errorf("failed to get active session: %w", err)
+	}
+
+	return &session, nil
+}
+
+func (r *SessionRepository) getActiveSessionSQLite(ctx context.Context) (*models.WorkoutSession, error) {
+	query := `
+		SELECT id, workout_id, started_at, ended_at, is_active, created_at, updated_at
+		FROM workout_sessions
+		WHERE is_active = 1
+		ORDER BY started_at DESC
+		LIMIT 1
+	`
+
+	var session models.WorkoutSession
+	err := r.sqlite.QueryRowContext(ctx, query).Scan(
+		&session.ID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
+		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // No active session found
+		}
 		return nil, fmt.Errorf("failed to get active session: %w", err)
 	}
 
@@ -248,4 +286,67 @@ func (r *SessionRepository) UpdateExerciseSet(ctx context.Context, set *models.E
 	}
 
 	return nil
+}
+
+func (r *SessionRepository) CompleteExerciseSet(ctx context.Context, sessionExerciseID string, setIndex int) error {
+	// Get all sets for this session exercise
+	sets, err := r.GetExerciseSets(ctx, sessionExerciseID)
+	if err != nil {
+		return fmt.Errorf("failed to get exercise sets: %w", err)
+	}
+
+	// Check if setIndex is valid
+	if setIndex < 0 || setIndex >= len(sets) {
+		return fmt.Errorf("invalid set index: %d", setIndex)
+	}
+
+	// Mark the specified set as completed
+	set := sets[setIndex]
+	set.Completed = true
+
+	return r.UpdateExerciseSet(ctx, set)
+}
+
+func (r *SessionRepository) GetProgressData(ctx context.Context) ([]map[string]interface{}, error) {
+	query := `
+		SELECT 
+			e.name as exercise_name,
+			DATE(es.created_at) as workout_date,
+			MAX(es.weight) as max_weight,
+			SUM(es.weight * es.reps) as total_volume
+		FROM exercise_sets es
+		JOIN session_exercises se ON es.session_exercise_id = se.id
+		JOIN exercises e ON se.exercise_id = e.id
+		WHERE es.completed = true
+		GROUP BY e.name, DATE(es.created_at)
+		ORDER BY workout_date DESC, exercise_name
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get progress data: %w", err)
+	}
+	defer rows.Close()
+
+	var progress []map[string]interface{}
+	for rows.Next() {
+		var exerciseName string
+		var workoutDate time.Time
+		var maxWeight float64
+		var totalVolume float64
+
+		err := rows.Scan(&exerciseName, &workoutDate, &maxWeight, &totalVolume)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan progress data: %w", err)
+		}
+
+		progress = append(progress, map[string]interface{}{
+			"exerciseName": exerciseName,
+			"date":         workoutDate.Format("2006-01-02"),
+			"maxWeight":    maxWeight,
+			"totalVolume":  totalVolume,
+		})
+	}
+
+	return progress, nil
 }
