@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css'
 import { apiService } from './api'
-import type { Workout, Exercise, WorkoutSession, SessionExercise, ExerciseSet } from './api'
+import type { Workout, Exercise, WorkoutSession } from './api'
 import { WorkoutLibrary } from './components/WorkoutLibrary';
 
 interface ProgressData {

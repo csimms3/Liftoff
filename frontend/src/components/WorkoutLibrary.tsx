@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { WorkoutTemplate, ApiService } from '../api';
+import type { WorkoutTemplate } from '../api';
+import { ApiService } from '../api';
 
 interface WorkoutLibraryProps {
 	onWorkoutCreated: () => void;
