@@ -167,8 +167,24 @@ func (r *WorkoutRepository) UpdateWorkout(ctx context.Context, id, name string) 
 }
 
 func (r *WorkoutRepository) DeleteWorkout(ctx context.Context, id string) error {
+	if r.useSQLite {
+		return r.deleteWorkoutSQLite(ctx, id)
+	}
+	return r.deleteWorkoutPostgres(ctx, id)
+}
+
+func (r *WorkoutRepository) deleteWorkoutPostgres(ctx context.Context, id string) error {
 	query := `DELETE FROM workouts WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete workout: %w", err)
+	}
+	return nil
+}
+
+func (r *WorkoutRepository) deleteWorkoutSQLite(ctx context.Context, id string) error {
+	query := `DELETE FROM workouts WHERE id = ?`
+	_, err := r.sqlite.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete workout: %w", err)
 	}
@@ -242,8 +258,24 @@ func (r *WorkoutRepository) UpdateExercise(ctx context.Context, exercise *models
 }
 
 func (r *WorkoutRepository) DeleteExercise(ctx context.Context, id string) error {
+	if r.useSQLite {
+		return r.deleteExerciseSQLite(ctx, id)
+	}
+	return r.deleteExercisePostgres(ctx, id)
+}
+
+func (r *WorkoutRepository) deleteExercisePostgres(ctx context.Context, id string) error {
 	query := `DELETE FROM exercises WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("failed to delete exercise: %w", err)
+	}
+	return nil
+}
+
+func (r *WorkoutRepository) deleteExerciseSQLite(ctx context.Context, id string) error {
+	query := `DELETE FROM exercises WHERE id = ?`
+	_, err := r.sqlite.ExecContext(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete exercise: %w", err)
 	}
