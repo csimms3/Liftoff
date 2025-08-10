@@ -4,22 +4,47 @@ import (
 	"time"
 )
 
+// Workout types for categorization
+const (
+	WorkoutTypeStrength = "strength"
+	WorkoutTypeCardio   = "cardio"
+	WorkoutTypeFlexibility = "flexibility"
+	WorkoutTypeHIIT     = "hiit"
+	WorkoutTypeEndurance = "endurance"
+	WorkoutTypePower    = "power"
+)
+
+// Workout represents a workout plan
 type Workout struct {
 	ID        string    `json:"id" db:"id"`
 	Name      string    `json:"name" db:"name"`
-	CreatedAt time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt time.Time `json:"updatedAt" db:"updated_at"`
+	Type      string    `json:"type" db:"type"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// WorkoutTemplate represents a predefined workout template
+type WorkoutTemplate struct {
+	ID          string    `json:"id" db:"id"`
+	Name        string    `json:"name" db:"name"`
+	Type        string    `json:"type" db:"type"`
+	Description string    `json:"description" db:"description"`
+	Difficulty  string    `json:"difficulty" db:"difficulty"`
+	Duration    int       `json:"duration" db:"duration"` // in minutes
+	Exercises   []Exercise `json:"exercises" db:"-"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+}
+
+// Exercise represents an exercise within a workout
 type Exercise struct {
-	ID        string    `json:"id" db:"id"`
-	Name      string    `json:"name" db:"name"`
-	Sets      int       `json:"sets" db:"sets"`
-	Reps      int       `json:"reps" db:"reps"`
-	Weight    float64   `json:"weight" db:"weight"`
-	WorkoutID string    `json:"workoutId" db:"workout_id"`
-	CreatedAt time.Time `json:"createdAt" db:"created_at"`
-	UpdatedAt time.Time `json:"updatedAt" db:"updated_at"`
+	ID         string    `json:"id" db:"id"`
+	Name       string    `json:"name" db:"name"`
+	Sets       int       `json:"sets" db:"sets"`
+	Reps       int       `json:"reps" db:"reps"`
+	Weight     float64   `json:"weight" db:"weight"`
+	WorkoutID  string    `json:"workout_id" db:"workout_id"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }
 
 type WorkoutSession struct {

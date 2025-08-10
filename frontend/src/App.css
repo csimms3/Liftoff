@@ -634,9 +634,31 @@ input::placeholder, textarea::placeholder {
   font-style: italic;
 }
 
-/* ==========================================================================
-   Responsive Design
-   ========================================================================== */
+/* ========================================================================== Workout Library ========================================================================== */
+
+.workout-library {
+	padding: 1rem;
+	max-width: 1200px;
+	margin: 0 auto;
+}
+
+.workout-library h2 {
+	color: #1e293b;
+	margin-bottom: 0.5rem;
+}
+
+.workout-library p {
+	color: #64748b;
+}
+
+.line-clamp-3 {
+	display: -webkit-box;
+	-webkit-line-clamp: 3;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+/* ========================================================================== Responsive Design ========================================================================== */
 
 @media (min-width: 1200px) {
   .workouts-view {

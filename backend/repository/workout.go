@@ -281,3 +281,143 @@ func (r *WorkoutRepository) deleteExerciseSQLite(ctx context.Context, id string)
 	}
 	return nil
 }
+
+// GetWorkoutTemplates returns all available workout templates
+func (r *WorkoutRepository) GetWorkoutTemplates(ctx context.Context) ([]*models.WorkoutTemplate, error) {
+	if r.useSQLite {
+		return r.getWorkoutTemplatesSQLite(ctx)
+	}
+	return r.getWorkoutTemplatesPostgres(ctx)
+}
+
+func (r *WorkoutRepository) getWorkoutTemplatesPostgres(ctx context.Context) ([]*models.WorkoutTemplate, error) {
+	// For now, return predefined templates
+	return r.getPredefinedTemplates(), nil
+}
+
+func (r *WorkoutRepository) getWorkoutTemplatesSQLite(ctx context.Context) ([]*models.WorkoutTemplate, error) {
+	// For now, return predefined templates
+	return r.getPredefinedTemplates(), nil
+}
+
+// getPredefinedTemplates returns a curated list of workout templates
+func (r *WorkoutRepository) getPredefinedTemplates() []*models.WorkoutTemplate {
+	return []*models.WorkoutTemplate{
+		{
+			ID:          "push-pull-legs",
+			Name:        "Push Pull Legs",
+			Type:        models.WorkoutTypeStrength,
+			Description: "Classic 3-day split focusing on pushing, pulling, and leg movements",
+			Difficulty:  "intermediate",
+			Duration:    60,
+			Exercises: []models.Exercise{
+				{Name: "Bench Press", Sets: 4, Reps: 8, Weight: 0},
+				{Name: "Overhead Press", Sets: 3, Reps: 10, Weight: 0},
+				{Name: "Dips", Sets: 3, Reps: 12, Weight: 0},
+				{Name: "Lateral Raises", Sets: 3, Reps: 15, Weight: 0},
+			},
+		},
+		{
+			ID:          "full-body-strength",
+			Name:        "Full Body Strength",
+			Type:        models.WorkoutTypeStrength,
+			Description: "Complete full-body workout hitting all major muscle groups",
+			Difficulty:  "beginner",
+			Duration:    45,
+			Exercises: []models.Exercise{
+				{Name: "Squats", Sets: 3, Reps: 12, Weight: 0},
+				{Name: "Push-ups", Sets: 3, Reps: 10, Weight: 0},
+				{Name: "Rows", Sets: 3, Reps: 12, Weight: 0},
+				{Name: "Plank", Sets: 3, Reps: 1, Weight: 0},
+			},
+		},
+		{
+			ID:          "hiit-cardio",
+			Name:        "HIIT Cardio",
+			Type:        models.WorkoutTypeHIIT,
+			Description: "High-intensity interval training for cardiovascular fitness",
+			Difficulty:  "advanced",
+			Duration:    30,
+			Exercises: []models.Exercise{
+				{Name: "Burpees", Sets: 4, Reps: 20, Weight: 0},
+				{Name: "Mountain Climbers", Sets: 4, Reps: 30, Weight: 0},
+				{Name: "Jump Squats", Sets: 4, Reps: 15, Weight: 0},
+				{Name: "High Knees", Sets: 4, Reps: 30, Weight: 0},
+			},
+		},
+		{
+			ID:          "upper-body-focus",
+			Name:        "Upper Body Focus",
+			Type:        models.WorkoutTypeStrength,
+			Description: "Targeted upper body workout for chest, back, and arms",
+			Difficulty:  "intermediate",
+			Duration:    50,
+			Exercises: []models.Exercise{
+				{Name: "Pull-ups", Sets: 4, Reps: 8, Weight: 0},
+				{Name: "Dumbbell Rows", Sets: 3, Reps: 12, Weight: 0},
+				{Name: "Diamond Push-ups", Sets: 3, Reps: 12, Weight: 0},
+				{Name: "Bicep Curls", Sets: 3, Reps: 15, Weight: 0},
+			},
+		},
+		{
+			ID:          "core-strength",
+			Name:        "Core Strength",
+			Type:        models.WorkoutTypeStrength,
+			Description: "Comprehensive core workout for stability and strength",
+			Difficulty:  "beginner",
+			Duration:    25,
+			Exercises: []models.Exercise{
+				{Name: "Crunches", Sets: 3, Reps: 20, Weight: 0},
+				{Name: "Russian Twists", Sets: 3, Reps: 20, Weight: 0},
+				{Name: "Leg Raises", Sets: 3, Reps: 15, Weight: 0},
+				{Name: "Side Plank", Sets: 3, Reps: 1, Weight: 0},
+			},
+		},
+		{
+			ID:          "endurance-run",
+			Name:        "Endurance Run",
+			Type:        models.WorkoutTypeEndurance,
+			Description: "Steady-state cardio for building endurance",
+			Difficulty:  "beginner",
+			Duration:    45,
+			Exercises: []models.Exercise{
+				{Name: "Running", Sets: 1, Reps: 1, Weight: 0},
+				{Name: "Walking", Sets: 1, Reps: 1, Weight: 0},
+			},
+		},
+	}
+}
+
+// CreateWorkoutFromTemplate creates a new workout based on a template
+func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templateID string, name string) (*models.Workout, error) {
+	templates := r.getPredefinedTemplates()
+	var template *models.WorkoutTemplate
+	
+	for _, t := range templates {
+		if t.ID == templateID {
+			template = t
+			break
+		}
+	}
+	
+	if template == nil {
+		return nil, fmt.Errorf("template not found: %s", templateID)
+	}
+	
+	// Create the workout
+	workout, err := r.CreateWorkout(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Add exercises from template
+	for _, exercise := range template.Exercises {
+		exercise.WorkoutID = workout.ID
+		err = r.CreateExercise(ctx, &exercise)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create exercise %s: %w", exercise.Name, err)
+		}
+	}
+	
+	return workout, nil
+}

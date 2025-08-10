@@ -91,6 +91,33 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Workout deleted"})
 		})
 
+		// Workout template routes
+		api.GET("/workout-templates", func(c *gin.Context) {
+			templates, err := workoutRepo.GetWorkoutTemplates(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, templates)
+		})
+
+		api.POST("/workout-templates/:id/create", func(c *gin.Context) {
+			templateID := c.Param("id")
+			var req struct {
+				Name string `json:"name"`
+			}
+			if err := c.ShouldBindJSON(&req); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			workout, err := workoutRepo.CreateWorkoutFromTemplate(c.Request.Context(), templateID, req.Name)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, workout)
+		})
+
 		// Exercise routes
 		api.POST("/exercises", func(c *gin.Context) {
 			var input struct {

@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import React, { useState, useEffect } from 'react';
 import './App.css'
 import { apiService } from './api'
 import type { Workout, Exercise, WorkoutSession, SessionExercise, ExerciseSet } from './api'
+import { WorkoutLibrary } from './components/WorkoutLibrary';
 
 interface ProgressData {
   exerciseName: string
@@ -10,14 +11,14 @@ interface ProgressData {
   totalVolume: number
 }
 
-function App() {
-  const [workouts, setWorkouts] = useState<Workout[]>([])
-  const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null)
-  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null)
-  const [progressData, setProgressData] = useState<ProgressData[]>([])
-  const [view, setView] = useState<'workouts' | 'session' | 'progress'>('workouts')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export default function App() {
+  const [view, setView] = useState<'workouts' | 'session' | 'progress' | 'library'>('workouts');
+  const [workouts, setWorkouts] = useState<Workout[]>([]);
+  const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
+  const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
+  const [progressData, setProgressData] = useState<ProgressData[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   const [newWorkoutName, setNewWorkoutName] = useState('')
   const [newExercise, setNewExercise] = useState({
@@ -86,7 +87,7 @@ function App() {
         sets: newExercise.sets,
         reps: newExercise.reps,
         weight: newExercise.weight,
-        workoutId: currentWorkout.id
+        workout_id: currentWorkout.id
       })
       
       const updatedWorkout = {
@@ -193,6 +194,11 @@ function App() {
     }
   }
 
+  const handleWorkoutCreated = () => {
+    loadWorkouts();
+    setView('workouts');
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -217,6 +223,12 @@ function App() {
             onClick={() => setView('progress')}
           >
             Progress
+          </button>
+          <button
+            className={`nav-button ${view === 'library' ? 'active' : ''}`}
+            onClick={() => setView('library')}
+          >
+            Library
           </button>
         </nav>
       </header>
@@ -438,9 +450,11 @@ function App() {
             )}
           </div>
         )}
+
+        {view === 'library' && (
+          <WorkoutLibrary onWorkoutCreated={handleWorkoutCreated} />
+        )}
       </main>
     </div>
   )
 }
-
-export default App
