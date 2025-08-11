@@ -47,6 +47,15 @@ type Exercise struct {
 	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
 }
 
+// ExerciseTemplate represents a predefined exercise template
+type ExerciseTemplate struct {
+	Name         string  `json:"name" db:"name"`
+	Category     string  `json:"category" db:"category"`
+	DefaultSets  int     `json:"default_sets" db:"default_sets"`
+	DefaultReps  int     `json:"default_reps" db:"default_reps"`
+	DefaultWeight float64 `json:"default_weight" db:"default_weight"`
+}
+
 type WorkoutSession struct {
 	ID        string     `json:"id" db:"id"`
 	WorkoutID string     `json:"workoutId" db:"workout_id"`

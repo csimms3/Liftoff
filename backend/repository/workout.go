@@ -300,6 +300,57 @@ func (r *WorkoutRepository) getWorkoutTemplatesSQLite(ctx context.Context) ([]*m
 	return r.getPredefinedTemplates(), nil
 }
 
+// GetExerciseTemplates returns all available exercise templates
+func (r *WorkoutRepository) GetExerciseTemplates(ctx context.Context) ([]*models.ExerciseTemplate, error) {
+	return r.getPredefinedExerciseTemplates(), nil
+}
+
+func (r *WorkoutRepository) getPredefinedExerciseTemplates() []*models.ExerciseTemplate {
+	return []*models.ExerciseTemplate{
+		// Chest exercises
+		{Name: "Barbell Bench Press", Category: "Chest", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 0},
+		{Name: "Dumbbell Bench Press", Category: "Chest", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		{Name: "Push-ups", Category: "Chest", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
+		{Name: "Incline Dumbbell Press", Category: "Chest", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		
+		// Back exercises
+		{Name: "Pull-ups", Category: "Back", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 0},
+		{Name: "Barbell Rows", Category: "Back", DefaultSets: 4, DefaultReps: 10, DefaultWeight: 0},
+		{Name: "Dumbbell Rows", Category: "Back", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Lat Pulldowns", Category: "Back", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		
+		// Shoulder exercises
+		{Name: "Overhead Press", Category: "Shoulders", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		{Name: "Lateral Raises", Category: "Shoulders", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
+		{Name: "Front Raises", Category: "Shoulders", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Dumbbell Shoulder Press", Category: "Shoulders", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		
+		// Arm exercises
+		{Name: "Bicep Curls", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Tricep Dips", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Hammer Curls", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Tricep Pushdowns", Category: "Arms", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
+		
+		// Leg exercises
+		{Name: "Barbell Squats", Category: "Legs", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 0},
+		{Name: "Deadlifts", Category: "Legs", DefaultSets: 4, DefaultReps: 6, DefaultWeight: 0},
+		{Name: "Lunges", Category: "Legs", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Leg Press", Category: "Legs", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		
+		// Core exercises
+		{Name: "Plank", Category: "Core", DefaultSets: 3, DefaultReps: 1, DefaultWeight: 0},
+		{Name: "Crunches", Category: "Core", DefaultSets: 3, DefaultReps: 20, DefaultWeight: 0},
+		{Name: "Russian Twists", Category: "Core", DefaultSets: 3, DefaultReps: 20, DefaultWeight: 0},
+		{Name: "Leg Raises", Category: "Core", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
+		
+		// Cardio exercises
+		{Name: "Running", Category: "Cardio", DefaultSets: 1, DefaultReps: 1, DefaultWeight: 0},
+		{Name: "Cycling", Category: "Cardio", DefaultSets: 1, DefaultReps: 1, DefaultWeight: 0},
+		{Name: "Jump Rope", Category: "Cardio", DefaultSets: 3, DefaultReps: 1, DefaultWeight: 0},
+		{Name: "Burpees", Category: "Cardio", DefaultSets: 4, DefaultReps: 15, DefaultWeight: 0},
+	}
+}
+
 // getPredefinedTemplates returns a curated list of workout templates
 func (r *WorkoutRepository) getPredefinedTemplates() []*models.WorkoutTemplate {
 	return []*models.WorkoutTemplate{

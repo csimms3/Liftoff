@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import './App.css'
 import { ApiService } from './api'
-import type { Workout, Exercise, WorkoutSession, WorkoutTemplate } from './api'
+import type { Workout, Exercise, WorkoutSession, ExerciseTemplate } from './api'
 import { WorkoutLibrary } from './components/WorkoutLibrary';
 
 interface ProgressData {
@@ -29,8 +29,8 @@ export default function App() {
     reps: 10,
     weight: 0
   })
-  const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
+  const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
 
   // Load data from API on mount
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function App() {
       try {
         await loadWorkouts()
         await loadActiveSession()
-        await loadTemplates()
+        await loadExerciseTemplates()
         await loadProgressData()
       } catch (error) {
         setError('Failed to load initial data')
@@ -68,12 +68,12 @@ export default function App() {
     }
   }
 
-  const loadTemplates = async () => {
+  const loadExerciseTemplates = async () => {
     try {
-      const templatesData = await apiService.getWorkoutTemplates();
-      setTemplates(templatesData);
+      const templatesData = await apiService.getExerciseTemplates();
+      setExerciseTemplates(templatesData);
     } catch (err) {
-      console.error('Failed to load templates:', err);
+      console.error('Failed to load exercise templates:', err);
     }
   };
 
@@ -127,35 +127,33 @@ export default function App() {
   }
 
   const addExerciseFromTemplate = async () => {
-    if (!selectedTemplate || !currentWorkout) return;
+    if (!selectedExerciseTemplate || !currentWorkout) return;
     
-    const template = templates.find(t => t.id === selectedTemplate);
+    const template = exerciseTemplates.find(t => t.name === selectedExerciseTemplate);
     if (!template) return;
 
     setLoading(true);
     try {
-      // Add all exercises from the template
-      for (const exercise of template.exercises) {
-        await apiService.createExercise({
-          name: exercise.name,
-          sets: exercise.sets,
-          reps: exercise.reps,
-          weight: exercise.weight,
-          workout_id: currentWorkout.id
-        });
-      }
+      // Add the exercise from the template
+      await apiService.createExercise({
+        name: template.name,
+        sets: template.default_sets,
+        reps: template.default_reps,
+        weight: template.default_weight,
+        workout_id: currentWorkout.id
+      });
       
-      // Refresh the current workout to show new exercises
+      // Refresh the current workout to show new exercise
       const updatedWorkout = await apiService.getWorkout(currentWorkout.id);
       setCurrentWorkout(updatedWorkout);
       
       // Reset template selection
-      setSelectedTemplate('');
+      setSelectedExerciseTemplate('');
       
       // Refresh workouts list
       await loadWorkouts();
     } catch (err) {
-      setError('Failed to add exercises from template');
+      setError('Failed to add exercise from template');
     } finally {
       setLoading(false);
     }
@@ -365,26 +363,26 @@ export default function App() {
                     
                     {/* Template Quick Add */}
                     <div className="template-quick-add">
-                      <h4>Quick Add from Template</h4>
+                      <h4>Quick Add Exercise</h4>
                       <div className="template-dropdown">
                         <select
-                          value={selectedTemplate}
-                          onChange={(e) => setSelectedTemplate(e.target.value)}
-                          disabled={loading || templates.length === 0}
+                          value={selectedExerciseTemplate}
+                          onChange={(e) => setSelectedExerciseTemplate(e.target.value)}
+                          disabled={loading || exerciseTemplates.length === 0}
                         >
-                          <option value="">Select a template...</option>
-                          {templates.map(template => (
-                            <option key={template.id} value={template.id}>
-                              {template.name} ({template.exercises.length} exercises)
+                          <option value="">Select an exercise...</option>
+                          {exerciseTemplates.map(template => (
+                            <option key={template.name} value={template.name}>
+                              {template.name} ({template.category})
                             </option>
                           ))}
                         </select>
                         <button
                           className="btn-secondary"
                           onClick={addExerciseFromTemplate}
-                          disabled={loading || !selectedTemplate}
+                          disabled={loading || !selectedExerciseTemplate}
                         >
-                          Add Template Exercises
+                          Add Exercise
                         </button>
                       </div>
                     </div>

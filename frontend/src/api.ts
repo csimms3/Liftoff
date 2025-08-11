@@ -57,6 +57,14 @@ export interface ExerciseSet {
 	notes?: string;
 }
 
+export interface ExerciseTemplate {
+	name: string;
+	category: string;
+	default_sets: number;
+	default_reps: number;
+	default_weight: number;
+}
+
 export class ApiService {
 	private baseUrl: string;
 
@@ -178,6 +186,10 @@ export class ApiService {
 			throw new Error(`Failed to create workout from template: ${response.statusText}`);
 		}
 		return response.json();
+	}
+
+	async getExerciseTemplates(): Promise<ExerciseTemplate[]> {
+		return this.request<ExerciseTemplate[]>('/exercise-templates')
 	}
 }
 

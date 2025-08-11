@@ -101,6 +101,15 @@ func main() {
 			c.JSON(http.StatusOK, templates)
 		})
 
+		api.GET("/exercise-templates", func(c *gin.Context) {
+			templates, err := workoutRepo.GetExerciseTemplates(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, templates)
+		})
+
 		api.POST("/workout-templates/:id/create", func(c *gin.Context) {
 			templateID := c.Param("id")
 			var req struct {
