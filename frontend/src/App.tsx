@@ -308,6 +308,46 @@ export default function App() {
     setView('workouts');
   };
 
+  /**
+   * Add an exercise from the library to the current workout
+   * 
+   * Creates a new exercise using the template data and adds it to the current workout.
+   */
+  const addExerciseFromLibrary = async (template: ExerciseTemplate) => {
+    if (!currentWorkout) {
+      setError('Please select a workout first');
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const exercise = await apiService.createExercise({
+        name: template.name,
+        sets: template.default_sets,
+        reps: template.default_reps,
+        weight: template.default_weight,
+        workout_id: currentWorkout.id
+      });
+      
+      // Update the current workout with the new exercise
+      const updatedWorkout = {
+        ...currentWorkout,
+        exercises: [...currentWorkout.exercises, exercise]
+      };
+      
+      // Update both the workouts list and current workout
+      setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w));
+      setCurrentWorkout(updatedWorkout);
+      
+      // Switch to workouts view to show the updated workout
+      setView('workouts');
+    } catch (err) {
+      setError('Failed to add exercise from library');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="app">
       <header className="app-header">
@@ -589,7 +629,10 @@ export default function App() {
         )}
 
         {view === 'library' && (
-          <WorkoutLibrary onWorkoutCreated={handleWorkoutCreated} />
+          <WorkoutLibrary 
+            onWorkoutCreated={handleWorkoutCreated}
+            onExerciseSelected={addExerciseFromLibrary}
+          />
         )}
       </main>
     </div>

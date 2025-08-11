@@ -636,26 +636,157 @@ input::placeholder, textarea::placeholder {
 
 /* ========================================================================== Workout Library ========================================================================== */
 
+/* Exercise Library Styles */
 .workout-library {
-	padding: 1rem;
-	max-width: 1200px;
-	margin: 0 auto;
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .workout-library h2 {
-	color: #1e293b;
-	margin-bottom: 0.5rem;
+  color: #1f2937;
+  margin-bottom: 8px;
 }
 
 .workout-library p {
-	color: #64748b;
+  color: #6b7280;
+  margin-bottom: 24px;
 }
 
-.line-clamp-3 {
-	display: -webkit-box;
-	-webkit-line-clamp: 3;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
+/* Search and Filter Controls */
+.workout-library input[type="text"],
+.workout-library select {
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.workout-library input[type="text"]:focus,
+.workout-library select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Exercise Grid */
+.workout-library .grid {
+  display: grid;
+  gap: 16px;
+}
+
+/* Exercise Cards */
+.workout-library .bg-white {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.workout-library .bg-white:hover {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.workout-library .bg-white h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 12px;
+  transition: color 0.2s ease;
+}
+
+.workout-library .bg-white:hover h3 {
+  color: #2563eb;
+}
+
+/* Category Badges */
+.workout-library .px-2 {
+  padding: 4px 8px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid;
+}
+
+/* Exercise Details */
+.workout-library .space-y-2 > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+}
+
+.workout-library .space-y-2 span:first-child {
+  color: #6b7280;
+}
+
+.workout-library .space-y-2 span:last-child {
+  color: #111827;
+  font-weight: 500;
+}
+
+/* Quick Add Button */
+.workout-library .bg-blue-600 {
+  background-color: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.workout-library .bg-blue-600:hover {
+  background-color: #1d4ed8;
+}
+
+/* Loading and Error States */
+.workout-library .animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Empty State */
+.workout-library .text-6xl {
+  font-size: 4rem;
+  line-height: 1;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .workout-library {
+    padding: 16px;
+  }
+  
+  .workout-library .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
+  .workout-library .grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .workout-library .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1025px) {
+  .workout-library .grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
 }
 
 /* ========================================================================== Responsive Design ========================================================================== */
