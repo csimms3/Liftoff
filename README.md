@@ -1,98 +1,179 @@
-# Liftoff
+# 🏋️ Liftoff - Workout Tracking Application
 
-A fullstack workout tracking application that empowers users to create custom workouts, track their lifting sessions, and monitor their fitness progress.
+A full-stack workout tracking application built with Go backend and React frontend, designed to help users create, track, and manage their fitness routines.
 
-## Features
+## 🚀 Features
 
-- **Workout Creation**: Design custom workouts with exercises, sets, and reps
-- **Session Tracking**: Start workout sessions and log your lifts in real-time
-- **Progress Monitoring**: Track your strength gains and workout history
-- **Exercise Management**: Add and remove exercises from workouts
+- **Workout Management**: Create, edit, and delete workout plans
+- **Exercise Tracking**: Add exercises with sets, reps, and weights
+- **Exercise Templates**: Quick-add common exercises from predefined templates
+- **Workout Sessions**: Track active workout sessions and progress
+- **Progress Tracking**: Monitor your fitness journey over time
+- **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-## Tech Stack
+## 🏗️ Architecture
 
-- **Frontend**: React 19 + TypeScript + Vite
-- **Backend**: Go + Gin + REST API
-- **Database**: PostgreSQL (production) / SQLite (development)
+### Backend (Go)
+- **Framework**: Gin web framework
+- **Database**: PostgreSQL (primary) with SQLite fallback
+- **ORM**: GORM for database operations
+- **Architecture**: Repository pattern with clean separation of concerns
 
-## Getting Started
+### Frontend (React + TypeScript)
+- **Framework**: React 18 with TypeScript
+- **Build Tool**: Vite for fast development and building
+- **Styling**: CSS with responsive design principles
+- **State Management**: React hooks (useState, useEffect)
+
+## 📁 Project Structure
+
+```
+Liftoff/
+├── backend/                 # Go backend application
+│   ├── database/           # Database connection and configuration
+│   ├── models/             # Data models and structs
+│   ├── repository/         # Data access layer
+│   ├── main.go            # Main application entry point
+│   └── go.mod             # Go module dependencies
+├── frontend/               # React frontend application
+│   ├── src/               # Source code
+│   │   ├── components/    # React components
+│   │   ├── api.ts         # API service and interfaces
+│   │   ├── App.tsx        # Main application component
+│   │   └── App.css        # Application styles
+│   ├── package.json       # Node.js dependencies
+│   └── vite.config.ts     # Vite configuration
+├── docker-compose.yml      # Docker setup for PostgreSQL
+└── README.md              # This file
+```
+
+## 🛠️ Setup & Installation
 
 ### Prerequisites
-- Go 1.21+
-- Node.js 18+
-- pnpm (recommended) or npm
+- Go 1.21+ 
+- Node.js 18+ and pnpm
+- PostgreSQL (optional, SQLite will be used as fallback)
 
 ### Backend Setup
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+```bash
+cd backend
+go mod download
+go run main.go
+```
 
-2. Install dependencies:
-   ```bash
-   go mod tidy
-   ```
-
-3. Start the server:
-   ```bash
-   go run main.go
-   ```
-   
-   The server will start on `http://localhost:8080`
+The backend will start on `http://localhost:8080`
 
 ### Frontend Setup
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
 
-2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-
-3. Start the development server:
-   ```bash
-   pnpm dev
-   ```
-   
-   The app will be available at `http://localhost:5173`
+The frontend will start on `http://localhost:5173`
 
 ### Database Setup
-The application automatically uses SQLite for development. For PostgreSQL:
+The application automatically detects and connects to:
+1. PostgreSQL (if available)
+2. SQLite (fallback, creates `liftoff.db` file)
 
-1. Start PostgreSQL with Docker:
-   ```bash
-   make db-up
-   ```
+## 🎯 API Endpoints
 
-2. Run migrations:
-   ```bash
-   make migrate
-   ```
-
-## API Endpoints
-
+### Workouts
 - `GET /api/workouts` - List all workouts
 - `POST /api/workouts` - Create new workout
 - `GET /api/workouts/:id` - Get specific workout
 - `DELETE /api/workouts/:id` - Delete workout
+
+### Exercises
 - `POST /api/exercises` - Add exercise to workout
-- `DELETE /api/exercises/:id` - Delete exercise
+- `DELETE /api/exercises/:id` - Remove exercise
 - `GET /api/workouts/:id/exercises` - Get exercises for workout
+
+### Exercise Templates
+- `GET /api/exercise-templates` - Get predefined exercise templates
+
+### Sessions
 - `POST /api/sessions` - Start workout session
 - `GET /api/sessions/active` - Get active session
-- `PUT /api/sessions/:id/end` - End session
-- `PUT /api/exercise-sets/:id/complete` - Complete exercise set
-- `GET /api/progress` - Get progress data
+- `PUT /api/sessions/:id/end` - End workout session
 
-## Development
+## 🎨 Exercise Templates
 
-- Backend: `make dev` or `go run main.go`
-- Frontend: `cd frontend && pnpm dev`
-- Tests: `make test`
-- Database: `make db-up` for PostgreSQL or SQLite fallback
+The application includes 32 predefined exercise templates organized by muscle group:
+
+- **Chest**: Barbell Bench Press, Dumbbell Bench Press, Push-ups
+- **Back**: Pull-ups, Barbell Rows, Dumbbell Rows
+- **Shoulders**: Overhead Press, Lateral Raises, Front Raises
+- **Arms**: Bicep Curls, Tricep Dips, Hammer Curls
+- **Legs**: Barbell Squats, Deadlifts, Lunges
+- **Core**: Plank, Crunches, Russian Twists
+- **Cardio**: Running, Cycling, Jump Rope
+
+## 🔧 Development
+
+### Code Style
+- **Go**: Follow Go formatting standards (`gofmt`)
+- **TypeScript**: Use strict mode and consistent naming
+- **CSS**: BEM methodology for component styling
+
+### Testing
+```bash
+# Backend tests
+cd backend
+go test ./...
+
+# Frontend tests
+cd frontend
+pnpm test
+```
+
+### Building
+```bash
+# Backend
+cd backend
+go build -o liftoff
+
+# Frontend
+cd frontend
+pnpm build
+```
+
+## 🚀 Deployment
+
+### Backend
+The Go backend can be deployed as a single binary:
+```bash
+go build -o liftoff
+./liftoff
+```
+
+### Frontend
+Build the frontend and serve static files:
+```bash
+pnpm build
+# Serve dist/ directory with any static file server
+```
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## 📝 License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## 🆘 Support
+
+If you encounter any issues or have questions:
+1. Check the existing issues
+2. Create a new issue with detailed information
+3. Include steps to reproduce the problem
 
 ---
 
-*More features and documentation to come as the project evolves.*
+Built with ❤️ for fitness enthusiasts everywhere.

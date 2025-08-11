@@ -2,12 +2,30 @@ import React, { useState, useEffect } from 'react';
 import type { WorkoutTemplate } from '../api';
 import { ApiService } from '../api';
 
+/**
+ * Props for the WorkoutLibrary component
+ */
 interface WorkoutLibraryProps {
+	/** Callback function called when a workout is successfully created from a template */
 	onWorkoutCreated: () => void;
 }
 
 const apiService = new ApiService();
 
+/**
+ * WorkoutLibrary Component
+ * 
+ * Displays a collection of predefined workout templates that users can browse
+ * and use to create new workouts. Each template includes exercises, difficulty
+ * level, workout type, and estimated duration.
+ * 
+ * Features:
+ * - Grid layout of workout templates with hover effects
+ * - Color-coded difficulty and type indicators
+ * - Modal for creating workouts from templates
+ * - Error handling and loading states
+ * - Responsive design for different screen sizes
+ */
 export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated }) => {
 	const [templates, setTemplates] = useState<WorkoutTemplate[]>([]);
 	const [loading, setLoading] = useState(true);
@@ -16,10 +34,14 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 	const [workoutName, setWorkoutName] = useState('');
 	const [creating, setCreating] = useState(false);
 
+	// Load workout templates on component mount
 	useEffect(() => {
 		loadTemplates();
 	}, []);
 
+	/**
+	 * Fetches workout templates from the API
+	 */
 	const loadTemplates = async () => {
 		try {
 			setLoading(true);
@@ -32,6 +54,9 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 		}
 	};
 
+	/**
+	 * Creates a new workout from the selected template
+	 */
 	const handleCreateFromTemplate = async () => {
 		if (!selectedTemplate || !workoutName.trim()) return;
 
@@ -48,6 +73,11 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 		}
 	};
 
+	/**
+	 * Returns CSS classes for difficulty badge styling
+	 * @param difficulty - The difficulty level (beginner, intermediate, advanced)
+	 * @returns CSS classes for the difficulty badge
+	 */
 	const getDifficultyColor = (difficulty: string) => {
 		switch (difficulty.toLowerCase()) {
 			case 'beginner': return 'bg-green-100 text-green-800';
@@ -57,6 +87,11 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 		}
 	};
 
+	/**
+	 * Returns CSS classes for workout type badge styling
+	 * @param type - The workout type (strength, cardio, hiit, etc.)
+	 * @returns CSS classes for the type badge
+	 */
 	const getTypeColor = (type: string) => {
 		switch (type.toLowerCase()) {
 			case 'strength': return 'bg-blue-100 text-blue-800';
@@ -69,10 +104,12 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 		}
 	};
 
+	// Loading state
 	if (loading) {
 		return <div className="text-center py-8">Loading workout library...</div>;
 	}
 
+	// Error state with retry button
 	if (error) {
 		return (
 			<div className="text-center py-8">
@@ -89,12 +126,13 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 
 	return (
 		<div className="workout-library">
+			{/* Header Section */}
 			<div className="mb-6">
 				<h2 className="text-2xl font-bold mb-2">Workout Library</h2>
 				<p className="text-gray-600">Choose from our curated collection of workout templates</p>
 			</div>
 
-			{/* Template Grid */}
+			{/* Template Grid - Responsive grid layout */}
 			<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
 				{templates.map((template) => (
 					<div
@@ -102,6 +140,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 						className="bg-white rounded-lg shadow-md p-6 border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer"
 						onClick={() => setSelectedTemplate(template)}
 					>
+						{/* Template Header with Type Badge */}
 						<div className="flex justify-between items-start mb-3">
 							<h3 className="text-lg font-semibold text-gray-900">{template.name}</h3>
 							<span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(template.type)}`}>
@@ -109,8 +148,10 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 							</span>
 						</div>
 						
+						{/* Template Description */}
 						<p className="text-gray-600 text-sm mb-4 line-clamp-3">{template.description}</p>
 						
+						{/* Template Metadata */}
 						<div className="flex justify-between items-center mb-4">
 							<span className={`px-2 py-1 rounded-full text-xs font-medium ${getDifficultyColor(template.difficulty)}`}>
 								{template.difficulty}
@@ -118,6 +159,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 							<span className="text-sm text-gray-500">{template.duration} min</span>
 						</div>
 						
+						{/* Exercise Count */}
 						<div className="text-sm text-gray-500">
 							{template.exercises.length} exercises
 						</div>
@@ -131,6 +173,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 					<div className="bg-white rounded-lg p-6 max-w-md w-full">
 						<h3 className="text-xl font-semibold mb-4">Create Workout from Template</h3>
 						
+						{/* Template Information */}
 						<div className="mb-4">
 							<label className="block text-sm font-medium text-gray-700 mb-2">
 								Template: {selectedTemplate.name}
@@ -143,6 +186,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 							</div>
 						</div>
 						
+						{/* Workout Name Input */}
 						<div className="mb-4">
 							<label className="block text-sm font-medium text-gray-700 mb-2">
 								Workout Name
@@ -156,6 +200,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated
 							/>
 						</div>
 						
+						{/* Action Buttons */}
 						<div className="flex justify-end space-x-3">
 							<button
 								onClick={() => {

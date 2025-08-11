@@ -12,17 +12,57 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+/**
+ * WorkoutRepository Package
+ * 
+ * Handles all database operations related to workouts, exercises, and templates.
+ * Supports both PostgreSQL and SQLite databases with automatic routing based on
+ * the active database connection.
+ * 
+ * Features:
+ * - CRUD operations for workouts and exercises
+ * - Workout template management
+ * - Exercise template library
+ * - Database-agnostic operations
+ * - Proper error handling and logging
+ */
+
+// WorkoutRepository manages workout-related database operations
 type WorkoutRepository struct {
-	db        *pgxpool.Pool
-	sqlite    *sql.DB
-	useSQLite bool
+	db        *pgxpool.Pool  // PostgreSQL connection pool
+	sqlite    *sql.DB        // SQLite database connection
+	useSQLite bool           // Flag indicating which database to use
 }
 
+/**
+ * NewWorkoutRepository creates a new workout repository instance
+ * 
+ * Args:
+ * - db: PostgreSQL connection pool
+ * - sqlite: SQLite database connection
+ * - useSQLite: Boolean flag indicating which database to use
+ * 
+ * Returns:
+ * - *WorkoutRepository: Configured repository instance
+ */
 func NewWorkoutRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *WorkoutRepository {
 	return &WorkoutRepository{db: db, sqlite: sqlite, useSQLite: useSQLite}
 }
 
-// Workout operations
+/**
+ * CreateWorkout creates a new workout in the database
+ * 
+ * Generates a unique UUID and timestamp, then delegates to the appropriate
+ * database implementation based on the useSQLite flag.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - name: Name of the workout to create
+ * 
+ * Returns:
+ * - *models.Workout: Created workout with generated ID and timestamps
+ * - error: Creation error if any
+ */
 func (r *WorkoutRepository) CreateWorkout(ctx context.Context, name string) (*models.Workout, error) {
 	id := uuid.New().String()
 	now := time.Now()
@@ -33,6 +73,22 @@ func (r *WorkoutRepository) CreateWorkout(ctx context.Context, name string) (*mo
 	return r.createWorkoutPostgres(ctx, id, name, now)
 }
 
+/**
+ * createWorkoutPostgres creates a workout in PostgreSQL database
+ * 
+ * Uses parameterized queries with proper error handling and returns
+ * the created workout with all fields populated.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: Generated UUID for the workout
+ * - name: Name of the workout
+ * - now: Current timestamp
+ * 
+ * Returns:
+ * - *models.Workout: Created workout with all fields
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) createWorkoutPostgres(ctx context.Context, id, name string, now time.Time) (*models.Workout, error) {
 	query := `
 		INSERT INTO workouts (id, name, created_at, updated_at)
@@ -51,6 +107,22 @@ func (r *WorkoutRepository) createWorkoutPostgres(ctx context.Context, id, name 
 	return &workout, nil
 }
 
+/**
+ * createWorkoutSQLite creates a workout in SQLite database
+ * 
+ * Uses SQLite-specific parameter syntax (?) and manually constructs
+ * the workout object since SQLite doesn't support RETURNING clause.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: Generated UUID for the workout
+ * - name: Name of the workout
+ * - now: Current timestamp
+ * 
+ * Returns:
+ * - *models.Workout: Created workout with all fields
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) createWorkoutSQLite(ctx context.Context, id, name string, now time.Time) (*models.Workout, error) {
 	query := `
 		INSERT INTO workouts (id, name, created_at, updated_at)
@@ -70,6 +142,19 @@ func (r *WorkoutRepository) createWorkoutSQLite(ctx context.Context, id, name st
 	}, nil
 }
 
+/**
+ * GetWorkouts retrieves all workouts from the database
+ * 
+ * Delegates to the appropriate database implementation and returns
+ * workouts ordered by creation date (newest first).
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.Workout: List of all workouts
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) GetWorkouts(ctx context.Context) ([]*models.Workout, error) {
 	if r.useSQLite {
 		return r.getWorkoutsSQLite(ctx)
@@ -77,6 +162,19 @@ func (r *WorkoutRepository) GetWorkouts(ctx context.Context) ([]*models.Workout,
 	return r.getWorkoutsPostgres(ctx)
 }
 
+/**
+ * getWorkoutsPostgres retrieves workouts from PostgreSQL database
+ * 
+ * Uses parameterized queries and proper row scanning with error handling.
+ * Returns workouts ordered by creation date descending.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.Workout: List of workouts from PostgreSQL
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context) ([]*models.Workout, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
@@ -103,6 +201,19 @@ func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context) ([]*models.
 	return workouts, nil
 }
 
+/**
+ * getWorkoutsSQLite retrieves workouts from SQLite database
+ * 
+ * Uses SQLite-specific parameter syntax (?) and proper row scanning with error handling.
+ * Returns workouts ordered by creation date descending.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.Workout: List of workouts from SQLite
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Workout, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
@@ -129,6 +240,19 @@ func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Wo
 	return workouts, nil
 }
 
+/**
+ * GetWorkout retrieves a single workout by its ID from the database
+ * 
+ * Uses parameterized query with error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to retrieve
+ * 
+ * Returns:
+ * - *models.Workout: Retrieved workout
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.Workout, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
@@ -147,6 +271,20 @@ func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.
 	return &workout, nil
 }
 
+/**
+ * UpdateWorkout updates an existing workout in the database
+ * 
+ * Uses parameterized query with error handling and returns the updated workout.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to update
+ * - name: New name for the workout
+ * 
+ * Returns:
+ * - *models.Workout: Updated workout
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) UpdateWorkout(ctx context.Context, id, name string) (*models.Workout, error) {
 	query := `
 		UPDATE workouts
@@ -166,6 +304,18 @@ func (r *WorkoutRepository) UpdateWorkout(ctx context.Context, id, name string) 
 	return &workout, nil
 }
 
+/**
+ * DeleteWorkout removes a workout from the database
+ * 
+ * Delegates to the appropriate database implementation based on the useSQLite flag.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to delete
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) DeleteWorkout(ctx context.Context, id string) error {
 	if r.useSQLite {
 		return r.deleteWorkoutSQLite(ctx, id)
@@ -173,6 +323,18 @@ func (r *WorkoutRepository) DeleteWorkout(ctx context.Context, id string) error 
 	return r.deleteWorkoutPostgres(ctx, id)
 }
 
+/**
+ * deleteWorkoutPostgres deletes a workout from PostgreSQL database
+ * 
+ * Uses parameterized query with error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to delete
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) deleteWorkoutPostgres(ctx context.Context, id string) error {
 	query := `DELETE FROM workouts WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
@@ -182,6 +344,18 @@ func (r *WorkoutRepository) deleteWorkoutPostgres(ctx context.Context, id string
 	return nil
 }
 
+/**
+ * deleteWorkoutSQLite deletes a workout from SQLite database
+ * 
+ * Uses SQLite-specific parameter syntax (?) and error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to delete
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) deleteWorkoutSQLite(ctx context.Context, id string) error {
 	query := `DELETE FROM workouts WHERE id = ?`
 	_, err := r.sqlite.ExecContext(ctx, query, id)
@@ -191,11 +365,50 @@ func (r *WorkoutRepository) deleteWorkoutSQLite(ctx context.Context, id string) 
 	return nil
 }
 
-// Exercise operations
+/**
+ * Exercise operations
+ * 
+ * Handles CRUD operations for exercises within workouts.
+ */
+
+/**
+ * CreateExercise creates a new exercise in the database
+ * 
+ * Generates a unique UUID and timestamp, then delegates to the appropriate
+ * database implementation based on the useSQLite flag.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - exercise: Pointer to the exercise model to create
+ * 
+ * Returns:
+ * - error: Creation error if any
+ */
 func (r *WorkoutRepository) CreateExercise(ctx context.Context, exercise *models.Exercise) error {
 	id := uuid.New().String()
 	now := time.Now()
 
+	if r.useSQLite {
+		return r.createExerciseSQLite(ctx, id, exercise, now)
+	}
+	return r.createExercisePostgres(ctx, id, exercise, now)
+}
+
+/**
+ * createExercisePostgres creates an exercise in PostgreSQL database
+ * 
+ * Uses parameterized queries with proper error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: Generated UUID for the exercise
+ * - exercise: Pointer to the exercise model
+ * - now: Current timestamp
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
+func (r *WorkoutRepository) createExercisePostgres(ctx context.Context, id string, exercise *models.Exercise, now time.Time) error {
 	query := `
 		INSERT INTO exercises (id, name, sets, reps, weight, workout_id, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -212,6 +425,51 @@ func (r *WorkoutRepository) CreateExercise(ctx context.Context, exercise *models
 	return nil
 }
 
+/**
+ * createExerciseSQLite creates an exercise in SQLite database
+ * 
+ * Uses SQLite-specific parameter syntax (?) and error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: Generated UUID for the exercise
+ * - exercise: Pointer to the exercise model
+ * - now: Current timestamp
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
+func (r *WorkoutRepository) createExerciseSQLite(ctx context.Context, id string, exercise *models.Exercise, now time.Time) error {
+	query := `
+		INSERT INTO exercises (id, name, sets, reps, weight, workout_id, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	_, err := r.sqlite.ExecContext(ctx, query, id, exercise.Name, exercise.Sets, exercise.Reps, exercise.Weight, exercise.WorkoutID, now, now)
+	if err != nil {
+		return fmt.Errorf("failed to create exercise: %w", err)
+	}
+
+	exercise.ID = id
+	exercise.CreatedAt = now
+	exercise.UpdatedAt = now
+	return nil
+}
+
+/**
+ * GetExercisesByWorkout retrieves all exercises for a specific workout from the database
+ * 
+ * Uses parameterized query with error handling.
+ * Returns exercises ordered by creation date ascending.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - workoutID: ID of the workout to retrieve exercises for
+ * 
+ * Returns:
+ * - []*models.Exercise: List of exercises for the workout
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID string) ([]*models.Exercise, error) {
 	query := `
 		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
@@ -242,6 +500,18 @@ func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID
 	return exercises, nil
 }
 
+/**
+ * UpdateExercise updates an existing exercise in the database
+ * 
+ * Uses parameterized query with error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - exercise: Pointer to the exercise model to update
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) UpdateExercise(ctx context.Context, exercise *models.Exercise) error {
 	query := `
 		UPDATE exercises
@@ -257,6 +527,18 @@ func (r *WorkoutRepository) UpdateExercise(ctx context.Context, exercise *models
 	return nil
 }
 
+/**
+ * DeleteExercise removes an exercise from the database
+ * 
+ * Delegates to the appropriate database implementation based on the useSQLite flag.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the exercise to delete
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) DeleteExercise(ctx context.Context, id string) error {
 	if r.useSQLite {
 		return r.deleteExerciseSQLite(ctx, id)
@@ -264,6 +546,18 @@ func (r *WorkoutRepository) DeleteExercise(ctx context.Context, id string) error
 	return r.deleteExercisePostgres(ctx, id)
 }
 
+/**
+ * deleteExercisePostgres deletes an exercise from PostgreSQL database
+ * 
+ * Uses parameterized query with error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the exercise to delete
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) deleteExercisePostgres(ctx context.Context, id string) error {
 	query := `DELETE FROM exercises WHERE id = $1`
 	_, err := r.db.Exec(ctx, query, id)
@@ -273,6 +567,18 @@ func (r *WorkoutRepository) deleteExercisePostgres(ctx context.Context, id strin
 	return nil
 }
 
+/**
+ * deleteExerciseSQLite deletes an exercise from SQLite database
+ * 
+ * Uses SQLite-specific parameter syntax (?) and error handling.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the exercise to delete
+ * 
+ * Returns:
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) deleteExerciseSQLite(ctx context.Context, id string) error {
 	query := `DELETE FROM exercises WHERE id = ?`
 	_, err := r.sqlite.ExecContext(ctx, query, id)
@@ -282,7 +588,18 @@ func (r *WorkoutRepository) deleteExerciseSQLite(ctx context.Context, id string)
 	return nil
 }
 
-// GetWorkoutTemplates returns all available workout templates
+/**
+ * GetWorkoutTemplates returns all available workout templates
+ * 
+ * Retrieves templates from the appropriate database implementation.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.WorkoutTemplate: List of workout templates
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) GetWorkoutTemplates(ctx context.Context) ([]*models.WorkoutTemplate, error) {
 	if r.useSQLite {
 		return r.getWorkoutTemplatesSQLite(ctx)
@@ -290,21 +607,64 @@ func (r *WorkoutRepository) GetWorkoutTemplates(ctx context.Context) ([]*models.
 	return r.getWorkoutTemplatesPostgres(ctx)
 }
 
+/**
+ * getWorkoutTemplatesPostgres retrieves workout templates from PostgreSQL database
+ * 
+ * For now, returns predefined templates.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.WorkoutTemplate: List of workout templates from PostgreSQL
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) getWorkoutTemplatesPostgres(ctx context.Context) ([]*models.WorkoutTemplate, error) {
 	// For now, return predefined templates
 	return r.getPredefinedTemplates(), nil
 }
 
+/**
+ * getWorkoutTemplatesSQLite retrieves workout templates from SQLite database
+ * 
+ * For now, returns predefined templates.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.WorkoutTemplate: List of workout templates from SQLite
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) getWorkoutTemplatesSQLite(ctx context.Context) ([]*models.WorkoutTemplate, error) {
 	// For now, return predefined templates
 	return r.getPredefinedTemplates(), nil
 }
 
-// GetExerciseTemplates returns all available exercise templates
+/**
+ * GetExerciseTemplates returns all available exercise templates
+ * 
+ * Returns a predefined list of exercise templates.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * 
+ * Returns:
+ * - []*models.ExerciseTemplate: List of exercise templates
+ * - error: Database error if any
+ */
 func (r *WorkoutRepository) GetExerciseTemplates(ctx context.Context) ([]*models.ExerciseTemplate, error) {
 	return r.getPredefinedExerciseTemplates(), nil
 }
 
+/**
+ * getPredefinedExerciseTemplates returns a curated list of exercise templates
+ * 
+ * Returns a predefined list of exercise templates.
+ * 
+ * Returns:
+ * - []*models.ExerciseTemplate: List of exercise templates
+ */
 func (r *WorkoutRepository) getPredefinedExerciseTemplates() []*models.ExerciseTemplate {
 	return []*models.ExerciseTemplate{
 		// Chest exercises
@@ -351,7 +711,14 @@ func (r *WorkoutRepository) getPredefinedExerciseTemplates() []*models.ExerciseT
 	}
 }
 
-// getPredefinedTemplates returns a curated list of workout templates
+/**
+ * getPredefinedTemplates returns a curated list of workout templates
+ * 
+ * Returns a predefined list of workout templates.
+ * 
+ * Returns:
+ * - []*models.WorkoutTemplate: List of workout templates
+ */
 func (r *WorkoutRepository) getPredefinedTemplates() []*models.WorkoutTemplate {
 	return []*models.WorkoutTemplate{
 		{
@@ -439,7 +806,21 @@ func (r *WorkoutRepository) getPredefinedTemplates() []*models.WorkoutTemplate {
 	}
 }
 
-// CreateWorkoutFromTemplate creates a new workout based on a template
+/**
+ * CreateWorkoutFromTemplate creates a new workout based on a template
+ * 
+ * Retrieves a template by its ID, creates a new workout, and adds exercises
+ * from the template to the new workout.
+ * 
+ * Args:
+ * - ctx: Context for the operation
+ * - templateID: ID of the template to use
+ * - name: Name for the new workout
+ * 
+ * Returns:
+ * - *models.Workout: Created workout with exercises from template
+ * - error: Creation error if any
+ */
 func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templateID string, name string) (*models.Workout, error) {
 	templates := r.getPredefinedTemplates()
 	var template *models.WorkoutTemplate

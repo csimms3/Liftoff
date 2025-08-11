@@ -4,6 +4,9 @@ import { ApiService } from './api'
 import type { Workout, Exercise, WorkoutSession, ExerciseTemplate } from './api'
 import { WorkoutLibrary } from './components/WorkoutLibrary';
 
+/**
+ * Progress data interface for tracking exercise performance over time
+ */
 interface ProgressData {
   exerciseName: string
   date: string
@@ -11,9 +14,34 @@ interface ProgressData {
   totalVolume: number
 }
 
+/**
+ * Main Application Component
+ * 
+ * Liftoff is a comprehensive workout tracking application that allows users to:
+ * - Create and manage workout plans
+ * - Track workout sessions in real-time
+ * - Monitor progress over time
+ * - Access exercise templates for quick workout building
+ * - View workout history and analytics
+ * 
+ * The app uses a multi-view architecture with state management for:
+ * - Workout management (create, edit, delete)
+ * - Active session tracking
+ * - Progress monitoring
+ * - Exercise template library
+ * 
+ * Features:
+ * - Responsive design for all screen sizes
+ * - Real-time session tracking
+ * - Exercise template dropdown for quick addition
+ * - Progress visualization
+ * - Error handling and loading states
+ */
 export default function App() {
+  // API service instance for backend communication
   const apiService = new ApiService();
   
+  // Application state management
   const [view, setView] = useState<'workouts' | 'session' | 'progress' | 'library'>('workouts');
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
@@ -22,6 +50,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Form state for creating new workouts and exercises
   const [newWorkoutName, setNewWorkoutName] = useState('')
   const [newExercise, setNewExercise] = useState({
     name: '',
@@ -29,10 +58,17 @@ export default function App() {
     reps: 10,
     weight: 0
   })
+  
+  // Exercise template state for quick exercise addition
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
   const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
 
-  // Load data from API on mount
+  /**
+   * Load initial application data on component mount
+   * 
+   * Fetches workouts, active session, exercise templates, and progress data
+   * to populate the application state.
+   */
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -47,6 +83,11 @@ export default function App() {
     loadData()
   }, [])
 
+  /**
+   * Load all workouts from the backend API
+   * 
+   * Updates the workouts state with fetched data and handles loading states.
+   */
   const loadWorkouts = async () => {
     try {
       setLoading(true)
@@ -59,6 +100,11 @@ export default function App() {
     }
   }
 
+  /**
+   * Load the currently active workout session
+   * 
+   * Silently fails if no active session exists, as this is optional.
+   */
   const loadActiveSession = async () => {
     try {
       const session = await apiService.getActiveSession()
@@ -68,6 +114,11 @@ export default function App() {
     }
   }
 
+  /**
+   * Load exercise templates for the quick-add dropdown
+   * 
+   * Fetches predefined exercise templates that users can quickly add to workouts.
+   */
   const loadExerciseTemplates = async () => {
     try {
       const templatesData = await apiService.getExerciseTemplates();
@@ -77,6 +128,11 @@ export default function App() {
     }
   };
 
+  /**
+   * Create a new workout with the specified name
+   * 
+   * Adds the new workout to the workouts list and clears the input field.
+   */
   const createWorkout = async () => {
     if (!newWorkoutName.trim()) return
     
@@ -92,6 +148,11 @@ export default function App() {
     }
   }
 
+  /**
+   * Add a new exercise to the current workout
+   * 
+   * Creates the exercise via API and updates the current workout state.
+   */
   const addExercise = async () => {
     if (!newExercise.name.trim() || !currentWorkout) return
     

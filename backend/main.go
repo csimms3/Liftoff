@@ -12,27 +12,38 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// Liftoff API Server
+// A workout tracking application with Go backend and React frontend
+// 
+// Features:
+// - Workout management (create, read, update, delete)
+// - Exercise tracking with sets, reps, and weights
+// - Workout sessions and progress tracking
+// - Exercise templates for quick workout building
+// - Support for both PostgreSQL and SQLite databases
+
 func main() {
-	// Initialize database
+	// Initialize database connection
 	db, err := database.NewDatabase()
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
 	defer db.Close()
 
-	// Initialize repositories
+	// Initialize repositories for data access
 	workoutRepo := repository.NewWorkoutRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	sessionRepo := repository.NewSessionRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 
-	// Setup Gin router
+	// Setup Gin router with default middleware (Logger and Recovery)
 	r := gin.Default()
 
-	// Add CORS middleware
+	// Add CORS middleware for frontend integration
 	r.Use(func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
 		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
 		c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
 
+		// Handle preflight requests
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)
 			return
@@ -41,14 +52,15 @@ func main() {
 		c.Next()
 	})
 
-	// API routes
+	// API routes group - all endpoints under /api
 	api := r.Group("/api")
 	{
-		// Workout routes
+		// Workout management endpoints
 		api.GET("/workouts", func(c *gin.Context) {
 			workouts, err := workoutRepo.GetWorkouts(c.Request.Context())
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				log.Printf("Error fetching workouts: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workouts"})
 				return
 			}
 			c.JSON(http.StatusOK, workouts)
@@ -59,13 +71,14 @@ func main() {
 				Name string `json:"name" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Workout name is required"})
 				return
 			}
 
 			workout, err := workoutRepo.CreateWorkout(c.Request.Context(), input.Name)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				log.Printf("Error creating workout: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create workout"})
 				return
 			}
 			c.JSON(http.StatusCreated, workout)
@@ -85,10 +98,11 @@ func main() {
 			id := c.Param("id")
 			err := workoutRepo.DeleteWorkout(c.Request.Context(), id)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				log.Printf("Error deleting workout: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete workout"})
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"message": "Workout deleted"})
+			c.JSON(http.StatusOK, gin.H{"message": "Workout deleted successfully"})
 		})
 
 		// Workout template routes

@@ -34,17 +34,17 @@ export interface Exercise {
 
 export interface WorkoutSession {
 	id: string;
-	workoutId: string;
+	workout_id: string;
 	workout: Workout;
-	startedAt: string;
-	endedAt?: string;
-	isActive: boolean;
+	started_at: string;
+	ended_at?: string;
+	is_active: boolean;
 	exercises: SessionExercise[];
 }
 
 export interface SessionExercise {
 	id: string;
-	exerciseId: string;
+	exercise_id: string;
 	exercise: Exercise;
 	sets: ExerciseSet[];
 }
@@ -124,7 +124,7 @@ export class ApiService {
   async createSession(workoutId: string): Promise<WorkoutSession> {
     return this.request<WorkoutSession>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ workoutId }),
+      body: JSON.stringify({ workout_id: workoutId }),
     })
   }
 
