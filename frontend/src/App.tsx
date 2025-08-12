@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
-import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData } from './api'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise } from './api'
 import './App.css'
 
 /**
@@ -28,7 +28,7 @@ import './App.css'
  */
 export default function App() {
   // API service instance for backend communication
-  const apiService = new ApiService();
+  const apiService = useMemo(() => new ApiService(), [])
   
   // Application state management
   const [view, setView] = useState<'workouts' | 'session' | 'progress' | 'library'>('workouts');
@@ -53,69 +53,77 @@ export default function App() {
   const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
 
   /**
-   * Load initial application data on component mount
-   * 
-   * Fetches workouts, active session, exercise templates, and progress data
-   * to populate the application state.
-   */
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        await loadWorkouts()
-        await loadActiveSession()
-        await loadExerciseTemplates()
-        await loadProgressData()
-      } catch {
-        setError('Failed to load initial data')
-      }
-    }
-    loadData()
-  }, [])
-
-  /**
    * Load all workouts from the backend API
    * 
    * Updates the workouts state with fetched data and handles loading states.
    */
-  const loadWorkouts = async () => {
+  const loadWorkouts = useCallback(async () => {
     try {
       setLoading(true)
       const data = await apiService.getWorkouts()
       setWorkouts(data)
-    } catch (err) {
+    } catch {
       setError('Failed to load workouts')
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiService])
 
   /**
    * Load the currently active workout session
    * 
    * Silently fails if no active session exists, as this is optional.
    */
-  const loadActiveSession = async () => {
+  const loadActiveSession = useCallback(async () => {
     try {
       const session = await apiService.getActiveSession()
       setActiveSession(session)
     } catch {
       // Silent fail for active session - it's optional
     }
-  }
+  }, [apiService])
 
   /**
    * Load exercise templates for the quick-add dropdown
    * 
    * Fetches predefined exercise templates that users can quickly add to workouts.
    */
-  const loadExerciseTemplates = async () => {
+  const loadExerciseTemplates = useCallback(async () => {
     try {
       const templatesData = await apiService.getExerciseTemplates();
       setExerciseTemplates(templatesData);
-    } catch (err) {
-      console.error('Failed to load exercise templates:', err);
+    } catch {
+      console.error('Failed to load exercise templates');
     }
-  };
+  }, [apiService]);
+
+  /**
+   * Load progress data for charts and analytics
+   */
+  const loadProgressData = useCallback(async () => {
+    try {
+      const data = await apiService.getProgressData();
+      setProgressData(data);
+    } catch {
+      console.error('Failed to load progress data');
+    }
+  }, [apiService]);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          loadWorkouts(),
+          loadActiveSession(),
+          loadExerciseTemplates(),
+          loadProgressData()
+        ])
+      } catch {
+        setError('Failed to load initial data')
+      }
+    }
+    loadData()
+  }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData])
 
   /**
    * Create a new workout with the specified name
@@ -130,7 +138,7 @@ export default function App() {
       const workout = await apiService.createWorkout(newWorkoutName.trim())
       setWorkouts([...workouts, workout])
       setNewWorkoutName('')
-    } catch (err) {
+    } catch {
       setError('Failed to create workout')
     } finally {
       setLoading(false)
@@ -160,7 +168,7 @@ export default function App() {
         exercises: [...currentWorkout.exercises, exercise]
       }
       
-      setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w))
+      setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
       setCurrentWorkout(updatedWorkout)
       
       setNewExercise({
@@ -169,7 +177,7 @@ export default function App() {
         reps: 10,
         weight: 0
       })
-    } catch (err) {
+    } catch {
       setError('Failed to add exercise')
     } finally {
       setLoading(false)
@@ -179,7 +187,7 @@ export default function App() {
   const addExerciseFromTemplate = async () => {
     if (!selectedExerciseTemplate || !currentWorkout) return;
     
-    const template = exerciseTemplates.find(t => t.name === selectedExerciseTemplate);
+    const template = exerciseTemplates.find((t: ExerciseTemplate) => t.name === selectedExerciseTemplate);
     if (!template) return;
 
     setLoading(true);
@@ -202,7 +210,7 @@ export default function App() {
       
       // Refresh workouts list
       await loadWorkouts();
-    } catch (err) {
+    } catch {
       setError('Failed to add exercise from template');
     } finally {
       setLoading(false);
@@ -221,7 +229,7 @@ export default function App() {
       setLoading(true)
       await apiService.completeSet(sessionExerciseId, setIndex)
       loadActiveSession() // Reload active session to update completed sets
-    } catch (err) {
+    } catch {
       setError('Failed to complete set')
     } finally {
       setLoading(false)
@@ -237,32 +245,23 @@ export default function App() {
       loadActiveSession() // Reload active session to update its state
       loadProgressData() // Reload progress data
       setView('workouts')
-    } catch (err) {
+    } catch {
       setError('Failed to end session')
     } finally {
       setLoading(false)
     }
   }
 
-  const loadProgressData = async () => {
-    try {
-      const data = await apiService.getProgressData();
-      setProgressData(data);
-    } catch (err) {
-      console.error('Failed to load progress data:', err);
-    }
-  };
-
   const deleteWorkout = async (workoutId: string) => {
     if (window.confirm('Are you sure you want to delete this workout?')) {
       try {
         setLoading(true)
         await apiService.deleteWorkout(workoutId)
-        setWorkouts(workouts.filter(w => w.id !== workoutId))
+        setWorkouts(workouts.filter((w: Workout) => w.id !== workoutId))
         if (currentWorkout?.id === workoutId) {
           setCurrentWorkout(null)
         }
-      } catch (err) {
+      } catch {
         setError('Failed to delete workout')
       } finally {
         setLoading(false)
@@ -279,12 +278,12 @@ export default function App() {
         await apiService.deleteExercise(exerciseId)
         const updatedWorkout = {
           ...currentWorkout,
-          exercises: currentWorkout.exercises.filter(e => e.id !== exerciseId)
+          exercises: currentWorkout.exercises.filter((e: Exercise) => e.id !== exerciseId)
         }
         
-        setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w))
+        setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
         setCurrentWorkout(updatedWorkout)
-      } catch (err) {
+      } catch {
         setError('Failed to delete exercise')
       } finally {
         setLoading(false)
@@ -325,12 +324,12 @@ export default function App() {
       };
       
       // Update both the workouts list and current workout
-      setWorkouts(workouts.map(w => w.id === currentWorkout.id ? updatedWorkout : w));
+      setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w));
       setCurrentWorkout(updatedWorkout);
       
       // Switch to workouts view to show the updated workout
       setView('workouts');
-    } catch (err) {
+    } catch {
       setError('Failed to add exercise from library');
     } finally {
       setLoading(false);
@@ -593,7 +592,7 @@ export default function App() {
               <p>Loading progress data...</p>
             ) : error ? (
               <p className="error-message">{error}</p>
-            ) : progressData.length === 0 ? (
+            ) : !progressData || progressData.length === 0 ? (
               <p className="empty-state">No progress data yet. Complete some workouts to see your progress!</p>
             ) : (
               <div className="progress-charts">
