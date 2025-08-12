@@ -5,7 +5,7 @@ import App from './App.tsx'
 
 // Suppress React DevTools comment
 if (typeof window !== 'undefined') {
-  (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }
+  (window as Window & { __REACT_DEVTOOLS_GLOBAL_HOOK__: { isDisabled: boolean } }).__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }
 }
 
 createRoot(document.getElementById('root')!).render(

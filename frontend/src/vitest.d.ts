@@ -1,6 +1,6 @@
-/// <reference types="vitest/globals" />
+/// <reference types="vitest" />
 /// <reference types="@testing-library/jest-dom" />
 
-declare module 'vitest' {
-  interface Assertion<T = any> extends jest.Matchers<void, T> {}
+interface CustomMatchers<R = unknown> {
+  toBeInTheDocument(): R;
 }

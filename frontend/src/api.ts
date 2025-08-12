@@ -73,23 +73,19 @@ export class ApiService {
 	}
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
-    try {
-      const response = await fetch(`${API_BASE}${endpoint}`, {
-        headers: {
-          'Content-Type': 'application/json',
-          ...options?.headers,
-        },
-        ...options,
-      })
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+      ...options,
+    })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      return response.json()
-    } catch (error) {
-      throw error
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`)
     }
+
+    return response.json()
   }
 
   // Workout endpoints
@@ -131,7 +127,7 @@ export class ApiService {
   async getActiveSession(): Promise<WorkoutSession | null> {
     try {
       return await this.request<WorkoutSession>('/sessions/active')
-    } catch (error) {
+    } catch {
       return null
     }
   }

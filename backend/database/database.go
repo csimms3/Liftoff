@@ -15,11 +15,11 @@ import (
 
 /**
  * Database Package
- * 
+ *
  * Provides database connectivity and management for the Liftoff application.
  * Supports both PostgreSQL (primary) and SQLite (fallback) databases with
  * automatic fallback when PostgreSQL is unavailable.
- * 
+ *
  * Features:
  * - Automatic database detection and connection
  * - Fallback to SQLite when PostgreSQL fails
@@ -30,18 +30,18 @@ import (
 
 // Database represents a database connection with support for both PostgreSQL and SQLite
 type Database struct {
-	pool      *pgxpool.Pool  // PostgreSQL connection pool
-	sqlite    *sql.DB        // SQLite database connection
-	useSQLite bool           // Flag indicating which database is active
+	pool      *pgxpool.Pool // PostgreSQL connection pool
+	sqlite    *sql.DB       // SQLite database connection
+	useSQLite bool          // Flag indicating which database is active
 }
 
 /**
  * NewDatabase creates a new database connection
- * 
+ *
  * Attempts to connect to PostgreSQL first, then falls back to SQLite
  * if PostgreSQL is unavailable. Loads environment variables from .env file
  * if present.
- * 
+ *
  * Returns:
  * - *Database: Database instance with active connection
  * - error: Connection error if both databases fail
@@ -83,10 +83,10 @@ func NewDatabase() (*Database, error) {
 
 /**
  * newSQLiteDatabase creates a new SQLite database connection
- * 
+ *
  * Creates the database file if it doesn't exist and initializes
  * all required tables with proper schema.
- * 
+ *
  * Returns:
  * - *Database: Database instance with SQLite connection
  * - error: Connection or table creation error
@@ -109,13 +109,13 @@ func newSQLiteDatabase() (*Database, error) {
 
 /**
  * createSQLiteTables initializes the SQLite database schema
- * 
+ *
  * Creates all necessary tables for the workout tracking application
  * including workouts, exercises, sessions, and related data.
- * 
+ *
  * Args:
  * - db: SQLite database connection
- * 
+ *
  * Returns:
  * - error: Table creation error if any
  */

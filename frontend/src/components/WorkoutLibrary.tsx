@@ -3,7 +3,6 @@ import type { ExerciseTemplate } from '../api';
 import { ApiService } from '../api';
 
 interface WorkoutLibraryProps {
-	onWorkoutCreated: () => void;
 	onExerciseSelected: (template: ExerciseTemplate) => void;
 }
 
@@ -23,7 +22,7 @@ const apiService = new ApiService();
  * - Error handling and loading states
  * - Responsive design for different screen sizes
  */
-export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onWorkoutCreated, onExerciseSelected }) => {
+export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelected }) => {
 	const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);

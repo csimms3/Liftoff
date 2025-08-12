@@ -1,18 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react'
+import { WorkoutLibrary } from './components/WorkoutLibrary'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData } from './api'
 import './App.css'
-import { ApiService } from './api'
-import type { Workout, Exercise, WorkoutSession, ExerciseTemplate } from './api'
-import { WorkoutLibrary } from './components/WorkoutLibrary';
-
-/**
- * Progress data interface for tracking exercise performance over time
- */
-interface ProgressData {
-  exerciseName: string
-  date: string
-  maxWeight: number
-  totalVolume: number
-}
 
 /**
  * Main Application Component
@@ -76,7 +65,7 @@ export default function App() {
         await loadActiveSession()
         await loadExerciseTemplates()
         await loadProgressData()
-      } catch (error) {
+      } catch {
         setError('Failed to load initial data')
       }
     }
@@ -109,7 +98,7 @@ export default function App() {
     try {
       const session = await apiService.getActiveSession()
       setActiveSession(session)
-    } catch (err) {
+    } catch {
       // Silent fail for active session - it's optional
     }
   }

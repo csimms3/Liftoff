@@ -111,11 +111,11 @@ body {
    ========================================================================== */
 
 input, textarea, select {
-  color: #1e293b !important;
+  color: #1e293b;
 }
 
 input::placeholder, textarea::placeholder {
-  color: #94a3b8 !important;
+  color: #94a3b8;
 }
 
 .input-group {
@@ -274,12 +274,11 @@ input::placeholder, textarea::placeholder {
    ========================================================================== */
 
 .workouts-view {
-  display: flex;
-  flex-direction: column;
-  gap: 2rem;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .left-panel, .right-panel {

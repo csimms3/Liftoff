@@ -6,12 +6,12 @@ import (
 
 // Workout types for categorization
 const (
-	WorkoutTypeStrength   = "strength"
-	WorkoutTypeCardio     = "cardio"
+	WorkoutTypeStrength    = "strength"
+	WorkoutTypeCardio      = "cardio"
 	WorkoutTypeFlexibility = "flexibility"
-	WorkoutTypeHIIT       = "hiit"
-	WorkoutTypeEndurance  = "endurance"
-	WorkoutTypePower      = "power"
+	WorkoutTypeHIIT        = "hiit"
+	WorkoutTypeEndurance   = "endurance"
+	WorkoutTypePower       = "power"
 )
 
 // Workout represents a workout plan with exercises
@@ -49,10 +49,10 @@ type Exercise struct {
 
 // ExerciseTemplate represents a predefined exercise template for quick addition
 type ExerciseTemplate struct {
-	Name         string  `json:"name" db:"name"`
-	Category     string  `json:"category" db:"category"`
-	DefaultSets  int     `json:"default_sets" db:"default_sets"`
-	DefaultReps  int     `json:"default_reps" db:"default_reps"`
+	Name          string  `json:"name" db:"name"`
+	Category      string  `json:"category" db:"category"`
+	DefaultSets   int     `json:"default_sets" db:"default_sets"`
+	DefaultReps   int     `json:"default_reps" db:"default_reps"`
 	DefaultWeight float64 `json:"default_weight" db:"default_weight"`
 }
 

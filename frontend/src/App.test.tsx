@@ -1,4 +1,5 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
+import { expect, test } from 'vitest'
 import App from './App'
 
 describe('App', () => {
@@ -13,9 +14,7 @@ describe('App', () => {
 
   test('shows create workout form', async () => {
     render(<App />)
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('Workout name...')).toBeInTheDocument()
-    })
+    await expect(screen.getByPlaceholderText('Workout name...')).toBeInTheDocument()
     expect(screen.getByText('Create')).toBeInTheDocument()
   })
 

@@ -14,7 +14,7 @@ import (
 
 // Liftoff API Server
 // A workout tracking application with Go backend and React frontend
-// 
+//
 // Features:
 // - Workout management (create, read, update, delete)
 // - Exercise tracking with sets, reps, and weights
