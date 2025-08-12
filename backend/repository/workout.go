@@ -46,7 +46,10 @@ type WorkoutRepository struct {
  * - *WorkoutRepository: Configured repository instance
  */
 func NewWorkoutRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *WorkoutRepository {
-	return &WorkoutRepository{db: db, sqlite: sqlite, useSQLite: useSQLite}
+	if useSQLite {
+		return &WorkoutRepository{db: nil, sqlite: sqlite, useSQLite: true}
+	}
+	return &WorkoutRepository{db: db, sqlite: nil, useSQLite: false}
 }
 
 /**

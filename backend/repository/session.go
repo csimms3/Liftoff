@@ -20,7 +20,10 @@ type SessionRepository struct {
 }
 
 func NewSessionRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *SessionRepository {
-	return &SessionRepository{db: db, sqlite: sqlite, useSQLite: useSQLite}
+	if useSQLite {
+		return &SessionRepository{db: nil, sqlite: sqlite, useSQLite: true}
+	}
+	return &SessionRepository{db: db, sqlite: nil, useSQLite: false}
 }
 
 // WorkoutSession operations
