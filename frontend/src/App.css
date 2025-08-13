@@ -690,7 +690,7 @@ input::placeholder, textarea::placeholder {
 /* Search and Filter Container */
 .workout-library .search-filter-container {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   margin-bottom: 2.5rem;
   flex-wrap: wrap;
@@ -701,16 +701,14 @@ input::placeholder, textarea::placeholder {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.workout-library .search-filter-container > * {
-  min-width: 200px;
-}
-
 .workout-library .search-filter-container > *:first-child {
-  flex: 1;
+  flex: 0 0 200px;
+  min-width: 150px;
 }
 
 .workout-library .search-filter-container > *:last-child {
   flex: 0 0 auto;
+  min-width: 120px;
 }
 
 /* Results Summary */
