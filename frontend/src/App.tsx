@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise } from './api'
 import './App.css'
@@ -553,7 +553,7 @@ export default function App() {
             <div className="session-header">
               <h2>Active Session: {activeSession.workout.name}</h2>
               <div className="session-info">
-                <span>Started: {new Date(activeSession.startedAt).toLocaleTimeString()}</span>
+                <span>Started: {new Date(activeSession.started_at).toLocaleTimeString()}</span>
                 <button onClick={endSession} className="btn-danger">
                   End Session
                 </button>
