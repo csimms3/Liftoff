@@ -36,6 +36,7 @@ export default function App() {
   const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
   const [progressData, setProgressData] = useState<ProgressData[]>([]);
+  const [completedSessions, setCompletedSessions] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
@@ -109,6 +110,18 @@ export default function App() {
     }
   }, [apiService]);
 
+  /**
+   * Load completed workout sessions for history
+   */
+  const loadCompletedSessions = useCallback(async () => {
+    try {
+      const sessions = await apiService.getCompletedSessions();
+      setCompletedSessions(sessions);
+    } catch {
+      console.error('Failed to load completed sessions');
+    }
+  }, [apiService]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
@@ -116,14 +129,15 @@ export default function App() {
           loadWorkouts(),
           loadActiveSession(),
           loadExerciseTemplates(),
-          loadProgressData()
+          loadProgressData(),
+          loadCompletedSessions()
         ])
       } catch {
         setError('Failed to load initial data')
       }
     }
     loadData()
-  }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData])
+  }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
 
   /**
    * Create a new workout with the specified name
@@ -588,31 +602,67 @@ export default function App() {
         {view === 'progress' && (
           <div className="progress-view">
             <h2>Progress Tracking</h2>
-            {loading ? (
-              <p>Loading progress data...</p>
-            ) : error ? (
-              <p className="error-message">{error}</p>
-            ) : !progressData || progressData.length === 0 ? (
-              <p className="empty-state">No progress data yet. Complete some workouts to see your progress!</p>
-            ) : (
-              <div className="progress-charts">
-                <div className="progress-summary">
-                  <h3>Recent Activity</h3>
-                  <div className="progress-cards">
-                    {progressData.slice(-5).reverse().map((data, index) => (
-                      <div key={index} className="progress-card">
-                        <h4>{data.exerciseName}</h4>
-                        <p className="progress-date">{new Date(data.date).toLocaleDateString()}</p>
-                        <div className="progress-stats">
-                          <span>Max Weight: {data.maxWeight} lbs</span>
-                          <span>Volume: {data.totalVolume} lbs</span>
+            
+            {/* Progress Charts Section */}
+            <div className="progress-section">
+              <h3>Exercise Progress</h3>
+              {loading ? (
+                <p>Loading progress data...</p>
+              ) : error ? (
+                <p className="error-message">{error}</p>
+              ) : !progressData || progressData.length === 0 ? (
+                <p className="empty-state">No progress data yet. Complete some workouts to see your progress!</p>
+              ) : (
+                <div className="progress-charts">
+                  <div className="progress-summary">
+                    <h4>Recent Activity</h4>
+                    <div className="progress-cards">
+                      {progressData.slice(-5).reverse().map((data, index) => (
+                        <div key={index} className="progress-card">
+                          <h5>{data.exerciseName}</h5>
+                          <p className="progress-date">{new Date(data.date).toLocaleDateString()}</p>
+                          <div className="progress-stats">
+                            <span>Max Weight: {data.maxWeight} lbs</span>
+                            <span>Volume: {data.totalVolume} lbs</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
+
+            {/* Workout History Section */}
+            <div className="workout-history-section">
+              <h3>Workout History</h3>
+              {loading ? (
+                <p>Loading workout history...</p>
+              ) : !completedSessions || completedSessions.length === 0 ? (
+                <p className="empty-state">No completed workouts yet. Finish a workout to see it here!</p>
+              ) : (
+                <div className="workout-history-list">
+                  {completedSessions.map((session) => (
+                    <div key={session.id} className="workout-history-card">
+                      <div className="workout-history-header">
+                        <h4>{session.workout?.name || 'Unknown Workout'}</h4>
+                        <span className="workout-date">
+                          {new Date(session.started_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <div className="workout-history-details">
+                        <span>Started: {new Date(session.started_at).toLocaleTimeString()}</span>
+                        <span>Duration: {session.ended_at ? 
+                          Math.round((new Date(session.ended_at).getTime() - new Date(session.started_at).getTime()) / 60000) + ' min' : 
+                          'Unknown'
+                        }</span>
+                        <span>Exercises: {session.exercises?.length || 0}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

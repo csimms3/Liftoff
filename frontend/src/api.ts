@@ -149,6 +149,11 @@ export class ApiService {
     return this.request<ProgressData[]>('/progress')
   }
 
+  // Workout history endpoints
+  async getCompletedSessions(): Promise<WorkoutSession[]> {
+    return this.request<WorkoutSession[]>('/sessions/completed')
+  }
+
   async deleteWorkout(id: string): Promise<void> {
     return this.request<void>(`/workouts/${id}`, {
       method: 'DELETE',

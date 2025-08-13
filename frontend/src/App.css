@@ -586,6 +586,76 @@ input::placeholder, textarea::placeholder {
   font-weight: 500;
 }
 
+/* Workout History Section */
+.progress-section,
+.workout-history-section {
+  margin-bottom: 3rem;
+}
+
+.progress-section h3,
+.workout-history-section h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #1e293b;
+  border-bottom: 2px solid #e5e7eb;
+  padding-bottom: 0.5rem;
+}
+
+.workout-history-list {
+  display: grid;
+  gap: 1rem;
+}
+
+.workout-history-card {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.workout-history-card:hover {
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.workout-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.workout-history-header h4 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1e293b;
+  margin: 0;
+}
+
+.workout-date {
+  font-size: 0.9rem;
+  color: #6b7280;
+  background: #f3f4f6;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+}
+
+.workout-history-details {
+  display: flex;
+  gap: 1.5rem;
+  font-size: 0.9rem;
+  color: #6b7280;
+}
+
+.workout-history-details span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 /* ==========================================================================
    States & Utilities
    ========================================================================== */

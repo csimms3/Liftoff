@@ -34,6 +34,170 @@ func (r *SessionRepository) CreateSession(ctx context.Context, workoutID string)
 	return r.createSessionPostgres(ctx, workoutID)
 }
 
+// CreateSessionWithExercises creates a session and initializes all exercises with sets
+func (r *SessionRepository) CreateSessionWithExercises(ctx context.Context, workoutID string) (*models.WorkoutSession, error) {
+	// Create the session first
+	session, err := r.CreateSession(ctx, workoutID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get the workout to access its exercises
+	workoutRepo := NewWorkoutRepository(r.db, r.sqlite, r.useSQLite)
+	workout, err := workoutRepo.GetWorkout(ctx, workoutID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workout: %w", err)
+	}
+
+	// Create session exercises and sets for each exercise
+	for _, exercise := range workout.Exercises {
+		// Create session exercise
+		sessionExercise, err := r.CreateSessionExercise(ctx, session.ID, exercise.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session exercise: %w", err)
+		}
+
+		// Create sets for this exercise
+		for i := 0; i < exercise.Sets; i++ {
+			set := &models.ExerciseSet{
+				SessionExerciseID: sessionExercise.ID,
+				Reps:              exercise.Reps,
+				Weight:            exercise.Weight,
+				Completed:         false,
+			}
+			err = r.CreateExerciseSet(ctx, set)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create exercise set: %w", err)
+			}
+		}
+	}
+
+	// Return the session with exercises populated
+	return r.GetActiveSessionWithExercises(ctx)
+}
+
+// GetActiveSessionWithExercises returns the active session with all exercises and sets populated
+func (r *SessionRepository) GetActiveSessionWithExercises(ctx context.Context) (*models.WorkoutSession, error) {
+	session, err := r.GetActiveSession(ctx)
+	if err != nil || session == nil {
+		return nil, err
+	}
+
+	// Get session exercises
+	sessionExercises, err := r.GetSessionExercises(ctx, session.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session exercises: %w", err)
+	}
+
+	// Populate exercises with sets and exercise details
+	for _, se := range sessionExercises {
+		// Get exercise details
+		workoutRepo := NewWorkoutRepository(r.db, r.sqlite, r.useSQLite)
+		exercise, err := workoutRepo.GetExercise(ctx, se.ExerciseID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get exercise: %w", err)
+		}
+		se.Exercise = exercise
+		
+		// Get sets for this exercise
+		sets, err := r.GetExerciseSets(ctx, se.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get exercise sets: %w", err)
+		}
+		se.Sets = sets
+	}
+
+	// Get workout details
+	workoutRepo := NewWorkoutRepository(r.db, r.sqlite, r.useSQLite)
+	workout, err := workoutRepo.GetWorkout(ctx, session.WorkoutID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workout: %w", err)
+	}
+
+	// Create a session with exercises populated
+	sessionWithExercises := &models.WorkoutSession{
+		ID:        session.ID,
+		WorkoutID: session.WorkoutID,
+		StartedAt: session.StartedAt,
+		EndedAt:   session.EndedAt,
+		IsActive:  session.IsActive,
+		CreatedAt: session.CreatedAt,
+		UpdatedAt: session.UpdatedAt,
+		Workout:   workout,
+		Exercises: sessionExercises,
+	}
+
+	return sessionWithExercises, nil
+}
+
+// GetCompletedSessions returns all completed workout sessions
+func (r *SessionRepository) GetCompletedSessions(ctx context.Context) ([]*models.WorkoutSession, error) {
+	if r.useSQLite {
+		return r.getCompletedSessionsSQLite(ctx)
+	}
+	return r.getCompletedSessionsPostgres(ctx)
+}
+
+func (r *SessionRepository) getCompletedSessionsPostgres(ctx context.Context) ([]*models.WorkoutSession, error) {
+	query := `
+		SELECT id, workout_id, started_at, ended_at, is_active, created_at, updated_at
+		FROM workout_sessions
+		WHERE is_active = false AND ended_at IS NOT NULL
+		ORDER BY ended_at DESC
+	`
+
+	rows, err := r.db.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get completed sessions: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []*models.WorkoutSession
+	for rows.Next() {
+		var session models.WorkoutSession
+		err := rows.Scan(
+			&session.ID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
+			&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan session: %w", err)
+		}
+		sessions = append(sessions, &session)
+	}
+
+	return sessions, nil
+}
+
+func (r *SessionRepository) getCompletedSessionsSQLite(ctx context.Context) ([]*models.WorkoutSession, error) {
+	query := `
+		SELECT id, workout_id, started_at, ended_at, is_active, created_at, updated_at
+		FROM workout_sessions
+		WHERE is_active = 0 AND ended_at IS NOT NULL
+		ORDER BY ended_at DESC
+	`
+
+	rows, err := r.sqlite.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get completed sessions: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []*models.WorkoutSession
+	for rows.Next() {
+		var session models.WorkoutSession
+		err := rows.Scan(
+			&session.ID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
+			&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan session: %w", err)
+		}
+		sessions = append(sessions, &session)
+	}
+
+	return sessions, nil
+}
+
 func (r *SessionRepository) createSessionPostgres(ctx context.Context, workoutID string) (*models.WorkoutSession, error) {
 	id := uuid.New().String()
 	now := time.Now()

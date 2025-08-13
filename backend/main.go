@@ -201,7 +201,7 @@ func main() {
 				return
 			}
 
-			session, err := sessionRepo.CreateSession(c.Request.Context(), input.WorkoutID)
+			session, err := sessionRepo.CreateSessionWithExercises(c.Request.Context(), input.WorkoutID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -210,7 +210,7 @@ func main() {
 		})
 
 		api.GET("/sessions/active", func(c *gin.Context) {
-			session, err := sessionRepo.GetActiveSession(c.Request.Context())
+			session, err := sessionRepo.GetActiveSessionWithExercises(c.Request.Context())
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "No active session"})
 				return
@@ -226,6 +226,83 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusOK, session)
+		})
+
+		// Session exercise routes
+		api.POST("/sessions/:id/exercises", func(c *gin.Context) {
+			sessionID := c.Param("id")
+			var input struct {
+				ExerciseID string `json:"exerciseId" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			sessionExercise, err := sessionRepo.CreateSessionExercise(c.Request.Context(), sessionID, input.ExerciseID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, sessionExercise)
+		})
+
+		// Exercise set routes
+		api.POST("/exercise-sets", func(c *gin.Context) {
+			var input struct {
+				SessionExerciseID string  `json:"sessionExerciseId" binding:"required"`
+				Reps              int     `json:"reps"`
+				Weight            float64 `json:"weight"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			set := &models.ExerciseSet{
+				SessionExerciseID: input.SessionExerciseID,
+				Reps:              input.Reps,
+				Weight:            input.Weight,
+			}
+
+			err := sessionRepo.CreateExerciseSet(c.Request.Context(), set)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, set)
+		})
+
+		api.PUT("/exercise-sets/:id/complete", func(c *gin.Context) {
+			id := c.Param("id")
+			var input struct {
+				SetIndex int `json:"setIndex"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), id, input.SetIndex)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
+		})
+
+		// Workout history routes
+		api.GET("/sessions/completed", func(c *gin.Context) {
+			sessions, err := sessionRepo.GetCompletedSessions(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, sessions)
 		})
 
 		// Exercise set routes

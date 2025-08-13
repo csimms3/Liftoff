@@ -503,6 +503,52 @@ func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID
 	return exercises, nil
 }
 
+// GetExercise retrieves a single exercise by ID
+func (r *WorkoutRepository) GetExercise(ctx context.Context, exerciseID string) (*models.Exercise, error) {
+	if r.useSQLite {
+		return r.getExerciseSQLite(ctx, exerciseID)
+	}
+	return r.getExercisePostgres(ctx, exerciseID)
+}
+
+func (r *WorkoutRepository) getExercisePostgres(ctx context.Context, exerciseID string) (*models.Exercise, error) {
+	query := `
+		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
+		FROM exercises
+		WHERE id = $1
+	`
+
+	var exercise models.Exercise
+	err := r.db.QueryRow(ctx, query, exerciseID).Scan(
+		&exercise.ID, &exercise.Name, &exercise.Sets, &exercise.Reps,
+		&exercise.Weight, &exercise.WorkoutID, &exercise.CreatedAt, &exercise.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get exercise: %w", err)
+	}
+
+	return &exercise, nil
+}
+
+func (r *WorkoutRepository) getExerciseSQLite(ctx context.Context, exerciseID string) (*models.Exercise, error) {
+	query := `
+		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
+		FROM exercises
+		WHERE id = ?
+	`
+
+	var exercise models.Exercise
+	err := r.sqlite.QueryRowContext(ctx, query, exerciseID).Scan(
+		&exercise.ID, &exercise.Name, &exercise.Sets, &exercise.Reps,
+		&exercise.Weight, &exercise.WorkoutID, &exercise.CreatedAt, &exercise.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get exercise: %w", err)
+	}
+
+	return &exercise, nil
+}
+
 /**
  * UpdateExercise updates an existing exercise in the database
  *
