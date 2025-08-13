@@ -111,7 +111,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 			</div>
 
 			{/* Search and Filter Controls */}
-			<div className="mb-6 flex flex-col sm:flex-row gap-4">
+			<div className="search-filter-container">
 				{/* Search Input */}
 				<div className="flex-1">
 					<input
@@ -140,7 +140,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 			</div>
 
 			{/* Results Count */}
-			<div className="mb-4 text-sm text-gray-600">
+			<div className="results-summary">
 				{filteredTemplates.length} exercise{filteredTemplates.length !== 1 ? 's' : ''} found
 			</div>
 
