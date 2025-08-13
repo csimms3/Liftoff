@@ -659,11 +659,17 @@ input::placeholder, textarea::placeholder {
 /* Search and Filter Controls */
 .workout-library input[type="text"],
 .workout-library select {
+  background-color: white;
+  color: #1f2937;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   padding: 8px 16px;
   font-size: 14px;
   transition: all 0.2s ease;
+}
+
+.workout-library input[type="text"]::placeholder {
+  color: #9ca3af;
 }
 
 .workout-library input[type="text"]:focus,
