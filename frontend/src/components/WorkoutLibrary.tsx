@@ -149,7 +149,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 				{filteredTemplates.map((template) => (
 					<div
 						key={template.name}
-						className="bg-white rounded-lg shadow-md p-4 border border-gray-200 hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer group"
+						className="bg-white rounded-lg shadow-md p-4 border border-gray-200 hover:shadow-lg transition-all duration-200 hover:scale-105 cursor-pointer group flex flex-col h-full"
 						onClick={() => onExerciseSelected(template)}
 					>
 						{/* Exercise Header with Category Badge */}
@@ -163,7 +163,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 						</div>
 						
 						{/* Exercise Details */}
-						<div className="space-y-2">
+						<div className="space-y-2 flex-grow">
 							<div className="flex justify-between text-sm">
 								<span className="text-gray-500">Sets:</span>
 								<span className="font-medium text-gray-900">{template.default_sets}</span>
@@ -181,7 +181,7 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 						</div>
 
 						{/* Quick Add Button */}
-						<div className="mt-4 pt-3 border-t border-gray-100">
+						<div className="mt-4 pt-3 border-t border-gray-100 mt-auto">
 							<button
 								className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 transition-colors duration-200"
 								onClick={(e) => {
