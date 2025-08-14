@@ -120,7 +120,7 @@ export class ApiService {
   async createSession(workoutId: string): Promise<WorkoutSession> {
     return this.request<WorkoutSession>('/sessions', {
       method: 'POST',
-      body: JSON.stringify({ workoutId }),
+      body: JSON.stringify({ workout_id: workoutId }),
     })
   }
 
