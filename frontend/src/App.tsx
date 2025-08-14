@@ -153,12 +153,7 @@ export default function App() {
     loadData()
   }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
 
-  // Auto-switch to session view when active session is loaded
-  useEffect(() => {
-    if (activeSession && view !== 'session') {
-      setView('session')
-    }
-  }, [activeSession, view])
+
 
   /**
    * Create a new workout with the specified name
@@ -266,7 +261,7 @@ export default function App() {
       const session = await apiService.createSession(workout.id)
       setActiveSession(session)
       setCurrentWorkout(workout)
-      setView('session')
+      // Don't auto-switch views - let user click Active Session tab
     } catch (error) {
       console.error('Failed to start workout session:', error)
       setError('Failed to start workout session')
@@ -612,11 +607,11 @@ export default function App() {
             </div>
             
             <div className="session-exercises">
-              {activeSession.exercises.map(sessionExercise => (
+              {activeSession.exercises?.map(sessionExercise => (
                 <div key={sessionExercise.id} className="session-exercise">
                   <h3>{sessionExercise.exercise.name}</h3>
                   <div className="sets-grid">
-                    {sessionExercise.sets.map((set, index) => (
+                    {sessionExercise.sets?.map((set, index) => (
                       <div 
                         key={set.id} 
                         className={`set-card ${set.completed ? 'completed' : ''}`}
@@ -628,10 +623,10 @@ export default function App() {
                         </span>
                         {set.completed && <span className="completed-check">✓</span>}
                       </div>
-                    ))}
+                    )) || <p>No sets available</p>}
                   </div>
                 </div>
-              ))}
+              )) || <p>No exercises in this session</p>}
             </div>
           </div>
         )}
