@@ -92,9 +92,13 @@ export default function App() {
   const loadActiveSession = useCallback(async () => {
     try {
       const session = await apiService.getActiveSession()
+      console.log('Loaded active session:', session)
       setActiveSession(session)
-    } catch {
+      return session
+    } catch (error) {
+      console.log('No active session or error:', error)
       // Silent fail for active session - it's optional
+      return null
     }
   }, [apiService])
 
@@ -153,7 +157,14 @@ export default function App() {
     loadData()
   }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
 
-
+  // Debug active session changes
+  useEffect(() => {
+    if (activeSession) {
+      console.log('Active session changed:', activeSession)
+      console.log('Exercises:', activeSession.exercises)
+      console.log('Workout:', activeSession.workout)
+    }
+  }, [activeSession])
 
   /**
    * Create a new workout with the specified name
@@ -257,13 +268,17 @@ export default function App() {
   const startWorkout = async (workout: Workout) => {
     try {
       setLoading(true)
+      console.log('Starting workout:', workout)
+      
       // Create a new session for this workout
       const session = await apiService.createSession(workout.id)
+      console.log('Session created:', session)
       setActiveSession(session)
       setCurrentWorkout(workout)
       
       // Refresh the active session to ensure exercises are loaded
-      await loadActiveSession()
+      const refreshedSession = await loadActiveSession()
+      console.log('Refreshed session:', refreshedSession)
       
       // Don't auto-switch views - let user click Active Session tab
     } catch (error) {
