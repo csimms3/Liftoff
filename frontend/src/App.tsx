@@ -230,7 +230,8 @@ export default function App() {
       
       // Reset template selection
       setSelectedExerciseTemplate('');
-    } catch {
+    } catch (error) {
+      console.error('Template exercise creation error:', error);
       setError('Failed to add exercise from template');
     } finally {
       setLoading(false);
