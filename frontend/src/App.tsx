@@ -153,6 +153,13 @@ export default function App() {
     loadData()
   }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
 
+  // Auto-switch to session view when active session is loaded
+  useEffect(() => {
+    if (activeSession && view !== 'session') {
+      setView('session')
+    }
+  }, [activeSession, view])
+
   /**
    * Create a new workout with the specified name
    * 
@@ -252,9 +259,20 @@ export default function App() {
     }
   };
 
-  const startWorkout = (workout: Workout) => {
-    setCurrentWorkout(workout)
-    setView('workouts')
+  const startWorkout = async (workout: Workout) => {
+    try {
+      setLoading(true)
+      // Create a new session for this workout
+      const session = await apiService.createSession(workout.id)
+      setActiveSession(session)
+      setCurrentWorkout(workout)
+      setView('session')
+    } catch (error) {
+      console.error('Failed to start workout session:', error)
+      setError('Failed to start workout session')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const completeSet = async (sessionExerciseId: string, setIndex: number) => {
@@ -466,7 +484,7 @@ export default function App() {
                             className="btn-primary"
                             disabled={loading}
                           >
-                            {currentWorkout?.id === workout.id ? 'Continue' : 'Start'}
+                            {activeSession && activeSession.workout.id === workout.id ? 'Continue Session' : 'Start'}
                           </button>
                         </div>
                       </div>
