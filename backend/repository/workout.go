@@ -513,8 +513,7 @@ func (r *WorkoutRepository) createExerciseSQLite(ctx context.Context, id string,
 /**
  * GetExercisesByWorkout retrieves all exercises for a specific workout from the database
  *
- * Uses parameterized query with error handling.
- * Returns exercises ordered by creation date ascending.
+ * Delegates to the appropriate database implementation based on the useSQLite flag.
  *
  * Args:
  * - ctx: Context for the operation
@@ -525,6 +524,26 @@ func (r *WorkoutRepository) createExerciseSQLite(ctx context.Context, id string,
  * - error: Database error if any
  */
 func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID string) ([]*models.Exercise, error) {
+	if r.useSQLite {
+		return r.getExercisesByWorkoutSQLite(ctx, workoutID)
+	}
+	return r.getExercisesByWorkoutPostgres(ctx, workoutID)
+}
+
+/**
+ * getExercisesByWorkoutPostgres retrieves exercises from PostgreSQL database
+ *
+ * Uses parameterized query with error handling.
+ *
+ * Args:
+ * - ctx: Context for the operation
+ * - workoutID: ID of the workout to retrieve exercises for
+ *
+ * Returns:
+ * - []*models.Exercise: List of exercises for the workout
+ * - error: Database error if any
+ */
+func (r *WorkoutRepository) getExercisesByWorkoutPostgres(ctx context.Context, workoutID string) ([]*models.Exercise, error) {
 	query := `
 		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
 		FROM exercises
@@ -533,6 +552,49 @@ func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID
 	`
 
 	rows, err := r.db.Query(ctx, query, workoutID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get exercises: %w", err)
+	}
+	defer rows.Close()
+
+	var exercises []*models.Exercise
+	for rows.Next() {
+		var exercise models.Exercise
+		err := rows.Scan(
+			&exercise.ID, &exercise.Name, &exercise.Sets, &exercise.Reps,
+			&exercise.Weight, &exercise.WorkoutID, &exercise.CreatedAt, &exercise.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan exercise: %w", err)
+		}
+		exercises = append(exercises, &exercise)
+	}
+
+	return exercises, nil
+}
+
+/**
+ * getExercisesByWorkoutSQLite retrieves exercises from SQLite database
+ *
+ * Uses SQLite-specific parameter syntax (?) and error handling.
+ *
+ * Args:
+ * - ctx: Context for the operation
+ * - workoutID: ID of the workout to retrieve exercises for
+ *
+ * Returns:
+ * - []*models.Exercise: List of exercises for the workout
+ * - error: Database error if any
+ */
+func (r *WorkoutRepository) getExercisesByWorkoutSQLite(ctx context.Context, workoutID string) ([]*models.Exercise, error) {
+	query := `
+		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
+		FROM exercises
+		WHERE workout_id = ?
+		ORDER BY created_at ASC
+	`
+
+	rows, err := r.sqlite.QueryContext(ctx, query, workoutID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get exercises: %w", err)
 	}
