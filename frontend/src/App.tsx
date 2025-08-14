@@ -261,6 +261,10 @@ export default function App() {
       const session = await apiService.createSession(workout.id)
       setActiveSession(session)
       setCurrentWorkout(workout)
+      
+      // Refresh the active session to ensure exercises are loaded
+      await loadActiveSession()
+      
       // Don't auto-switch views - let user click Active Session tab
     } catch (error) {
       console.error('Failed to start workout session:', error)
@@ -595,38 +599,61 @@ export default function App() {
         )}
 
         {view === 'session' && activeSession && (
-          <div className="session-view">
-            <div className="session-header">
-              <h2>Active Session: {activeSession.workout.name}</h2>
-              <div className="session-info">
-                <span>Started: {new Date(activeSession.started_at).toLocaleTimeString()}</span>
-                <button onClick={endSession} className="btn-danger">
-                  End Session
-                </button>
-              </div>
-            </div>
-            
-            <div className="session-exercises">
-              {activeSession.exercises?.map(sessionExercise => (
-                <div key={sessionExercise.id} className="session-exercise">
-                  <h3>{sessionExercise.exercise.name}</h3>
-                  <div className="sets-grid">
-                    {sessionExercise.sets?.map((set, index) => (
-                      <div 
-                        key={set.id} 
-                        className={`set-card ${set.completed ? 'completed' : ''}`}
-                        onClick={() => completeSet(sessionExercise.id, index)}
-                      >
-                        <span className="set-number">Set {index + 1}</span>
-                        <span className="set-details">
-                          {set.reps} reps @ {set.weight} lbs
-                        </span>
-                        {set.completed && <span className="completed-check">✓</span>}
-                      </div>
-                    )) || <p>No sets available</p>}
+          <div className="workouts-view">
+            <div className="left-panel">
+              <div className="current-workout">
+                <h2>Active Session: {activeSession.workout?.name}</h2>
+                <div className="session-info">
+                  <p className="workout-stats">
+                    Started: {new Date(activeSession.started_at).toLocaleTimeString()}
+                  </p>
+                  <div className="workout-actions">
+                    <button onClick={endSession} className="btn-danger">
+                      End Session
+                    </button>
                   </div>
                 </div>
-              )) || <p>No exercises in this session</p>}
+              </div>
+            </div>
+
+            <div className="right-panel">
+              <div className="workouts-section">
+                <h2>Session Exercises</h2>
+                {activeSession.exercises?.length > 0 ? (
+                  <div className="exercise-cards">
+                    {activeSession.exercises.map(sessionExercise => (
+                      <div key={sessionExercise.id} className="exercise-card">
+                        <div className="exercise-header">
+                          <h4>{sessionExercise.exercise?.name}</h4>
+                        </div>
+                        <div className="exercise-stats">
+                          {sessionExercise.sets?.length > 0 ? (
+                            <div className="sets-grid">
+                              {sessionExercise.sets.map((set, index) => (
+                                <div 
+                                  key={set.id} 
+                                  className={`set-card ${set.completed ? 'completed' : ''}`}
+                                  onClick={() => completeSet(sessionExercise.id, index)}
+                                >
+                                  <span className="set-number">Set {index + 1}</span>
+                                  <span className="set-details">
+                                    {set.reps} reps @ {set.weight} lbs
+                                  </span>
+                                  {set.completed && <span className="completed-check">✓</span>}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="empty-state">No sets available</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">No exercises in this session</p>
+                )}
+              </div>
             </div>
           </div>
         )}
