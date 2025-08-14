@@ -458,7 +458,7 @@ export default function App() {
                           </button>
                         </div>
                         <p className="workout-stats">
-                          {workout.exercises?.length || 0} exercises
+                          {workout.exercises?.length || 0} {(workout.exercises?.length || 0) === 1 ? 'exercise' : 'exercises'}
                         </p>
                         <div className="workout-actions">
                           <button 
