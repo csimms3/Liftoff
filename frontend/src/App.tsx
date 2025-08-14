@@ -62,7 +62,21 @@ export default function App() {
     try {
       setLoading(true)
       const data = await apiService.getWorkouts()
-      setWorkouts(data)
+      
+      // Load exercises for each workout
+      const workoutsWithExercises = await Promise.all(
+        data.map(async (workout) => {
+          try {
+            const exercises = await apiService.getExercisesByWorkout(workout.id)
+            return { ...workout, exercises }
+          } catch {
+            // If loading exercises fails, use empty array
+            return { ...workout, exercises: [] }
+          }
+        })
+      )
+      
+      setWorkouts(workoutsWithExercises)
     } catch {
       setError('Failed to load workouts')
     } finally {
