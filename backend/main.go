@@ -148,7 +148,7 @@ func main() {
 				Sets      int     `json:"sets" binding:"required"`
 				Reps      int     `json:"reps" binding:"required"`
 				Weight    float64 `json:"weight"`
-				WorkoutID string  `json:"workoutId" binding:"required"`
+				WorkoutID string  `json:"workout_id" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -194,7 +194,7 @@ func main() {
 		// Session routes
 		api.POST("/sessions", func(c *gin.Context) {
 			var input struct {
-				WorkoutID string `json:"workoutId" binding:"required"`
+				WorkoutID string `json:"workout_id" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -282,10 +282,6 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
 
 			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), id, input.SetIndex)
 			if err != nil {
@@ -305,24 +301,7 @@ func main() {
 			c.JSON(http.StatusOK, sessions)
 		})
 
-		// Exercise set routes
-		api.PUT("/exercise-sets/:id/complete", func(c *gin.Context) {
-			id := c.Param("id")
-			var input struct {
-				SetIndex int `json:"setIndex"`
-			}
-			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
 
-			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), id, input.SetIndex)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
-		})
 
 		// Progress routes
 		api.GET("/progress", func(c *gin.Context) {
