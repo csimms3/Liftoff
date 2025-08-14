@@ -307,22 +307,20 @@ export default function App() {
   const deleteExercise = async (exerciseId: string) => {
     if (!currentWorkout) return
     
-    if (window.confirm('Are you sure you want to delete this exercise?')) {
-      try {
-        setLoading(true)
-        await apiService.deleteExercise(exerciseId)
-        const updatedWorkout = {
-          ...currentWorkout,
-          exercises: currentWorkout.exercises.filter((e: Exercise) => e.id !== exerciseId)
-        }
-        
-        setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
-        setCurrentWorkout(updatedWorkout)
-      } catch {
-        setError('Failed to delete exercise')
-      } finally {
-        setLoading(false)
+    try {
+      setLoading(true)
+      await apiService.deleteExercise(exerciseId)
+      const updatedWorkout = {
+        ...currentWorkout,
+        exercises: currentWorkout.exercises.filter((e: Exercise) => e.id !== exerciseId)
       }
+      
+      setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
+      setCurrentWorkout(updatedWorkout)
+    } catch {
+      setError('Failed to delete exercise')
+    } finally {
+      setLoading(false)
     }
   }
 
