@@ -191,7 +191,8 @@ export default function App() {
         reps: 10,
         weight: 0
       })
-    } catch {
+    } catch (error) {
+      console.error('Exercise creation error:', error);
       setError('Failed to add exercise')
     } finally {
       setLoading(false)
@@ -207,7 +208,7 @@ export default function App() {
     setLoading(true);
     try {
       // Add the exercise from the template
-      await apiService.createExercise({
+      const newExercise = await apiService.createExercise({
         name: template.name,
         sets: template.default_sets,
         reps: template.default_reps,
@@ -215,15 +216,20 @@ export default function App() {
         workout_id: currentWorkout.id
       });
       
-      // Refresh the current workout to show new exercise
-      const updatedWorkout = await apiService.getWorkout(currentWorkout.id);
+      // Update the current workout locally with the new exercise
+      const updatedWorkout = {
+        ...currentWorkout,
+        exercises: [...currentWorkout.exercises, newExercise]
+      };
       setCurrentWorkout(updatedWorkout);
+      
+      // Update the workouts list locally
+      setWorkouts(workouts.map((w: Workout) => 
+        w.id === currentWorkout.id ? updatedWorkout : w
+      ));
       
       // Reset template selection
       setSelectedExerciseTemplate('');
-      
-      // Refresh workouts list
-      await loadWorkouts();
     } catch {
       setError('Failed to add exercise from template');
     } finally {
