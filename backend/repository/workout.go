@@ -246,7 +246,7 @@ func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Wo
 /**
  * GetWorkout retrieves a single workout by its ID from the database
  *
- * Uses parameterized query with error handling.
+ * Delegates to the appropriate database implementation based on the useSQLite flag.
  *
  * Args:
  * - ctx: Context for the operation
@@ -257,6 +257,26 @@ func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Wo
  * - error: Database error if any
  */
 func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.Workout, error) {
+	if r.useSQLite {
+		return r.getWorkoutSQLite(ctx, id)
+	}
+	return r.getWorkoutPostgres(ctx, id)
+}
+
+/**
+ * getWorkoutPostgres retrieves a workout from PostgreSQL database
+ *
+ * Uses parameterized query with error handling.
+ *
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to retrieve
+ *
+ * Returns:
+ * - *models.Workout: Retrieved workout
+ * - error: Database error if any
+ */
+func (r *WorkoutRepository) getWorkoutPostgres(ctx context.Context, id string) (*models.Workout, error) {
 	query := `
 		SELECT id, name, created_at, updated_at
 		FROM workouts
@@ -265,6 +285,37 @@ func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.
 
 	var workout models.Workout
 	err := r.db.QueryRow(ctx, query, id).Scan(
+		&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get workout: %w", err)
+	}
+
+	return &workout, nil
+}
+
+/**
+ * getWorkoutSQLite retrieves a workout from SQLite database
+ *
+ * Uses SQLite-specific parameter syntax (?) and error handling.
+ *
+ * Args:
+ * - ctx: Context for the operation
+ * - id: ID of the workout to retrieve
+ *
+ * Returns:
+ * - *models.Workout: Retrieved workout
+ * - error: Database error if any
+ */
+func (r *WorkoutRepository) getWorkoutSQLite(ctx context.Context, id string) (*models.Workout, error) {
+	query := `
+		SELECT id, name, created_at, updated_at
+		FROM workouts
+		WHERE id = ?
+	`
+
+	var workout models.Workout
+	err := r.sqlite.QueryRowContext(ctx, query, id).Scan(
 		&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
 	if err != nil {
