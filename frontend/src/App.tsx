@@ -179,7 +179,7 @@ export default function App() {
       
       const updatedWorkout = {
         ...currentWorkout,
-        exercises: [...currentWorkout.exercises, exercise]
+        exercises: [...(currentWorkout.exercises || []), exercise]
       }
       
       setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
@@ -219,7 +219,7 @@ export default function App() {
       // Update the current workout locally with the new exercise
       const updatedWorkout = {
         ...currentWorkout,
-        exercises: [...currentWorkout.exercises, newExercise]
+        exercises: [...(currentWorkout.exercises || []), newExercise]
       };
       setCurrentWorkout(updatedWorkout);
       
@@ -341,7 +341,7 @@ export default function App() {
       // Update the current workout with the new exercise
       const updatedWorkout = {
         ...currentWorkout,
-        exercises: [...currentWorkout.exercises, exercise]
+        exercises: [...(currentWorkout.exercises || []), exercise]
       };
       
       // Update both the workouts list and current workout
