@@ -257,10 +257,33 @@ func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Wo
  * - error: Database error if any
  */
 func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.Workout, error) {
+	var workout *models.Workout
+	var err error
+	
 	if r.useSQLite {
-		return r.getWorkoutSQLite(ctx, id)
+		workout, err = r.getWorkoutSQLite(ctx, id)
+	} else {
+		workout, err = r.getWorkoutPostgres(ctx, id)
 	}
-	return r.getWorkoutPostgres(ctx, id)
+	
+	if err != nil {
+		return nil, err
+	}
+	
+	// Load exercises for this workout
+	exercisePtrs, err := r.GetExercisesByWorkout(ctx, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load exercises: %w", err)
+	}
+	
+	// Convert []*Exercise to []Exercise
+	exercises := make([]models.Exercise, len(exercisePtrs))
+	for i, exercisePtr := range exercisePtrs {
+		exercises[i] = *exercisePtr
+	}
+	
+	workout.Exercises = exercises
+	return workout, nil
 }
 
 /**
