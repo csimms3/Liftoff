@@ -53,6 +53,9 @@ export default function App() {
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
   const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
 
+  // Settings menu state
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
   /**
    * Load all workouts from the backend API
    * 
@@ -404,8 +407,62 @@ export default function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🏋️ Liftoff</h1>
-        <p>Track your workouts and build strength</p>
+        <div className="header-content">
+          <div className="header-left">
+            <h1>🏋️ Liftoff</h1>
+            <p>Track your workouts and build strength</p>
+          </div>
+          <button 
+            className="hamburger-menu"
+            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+            aria-label="Settings menu"
+          >
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+        </div>
+        
+        {isSettingsOpen && (
+          <div className="settings-menu">
+            <div className="settings-header">
+              <h3>Settings</h3>
+              <button 
+                className="close-settings"
+                onClick={() => setIsSettingsOpen(false)}
+                aria-label="Close settings"
+              >
+                ×
+              </button>
+            </div>
+            <div className="settings-content">
+              <div className="setting-item">
+                <label>Theme</label>
+                <select defaultValue="light">
+                  <option value="light">Light</option>
+                  <option value="dark">Dark</option>
+                  <option value="auto">Auto</option>
+                </select>
+              </div>
+              <div className="setting-item">
+                <label>Units</label>
+                <select defaultValue="lbs">
+                  <option value="lbs">Pounds (lbs)</option>
+                  <option value="kg">Kilograms (kg)</option>
+                </select>
+              </div>
+              <div className="setting-item">
+                <label>Notifications</label>
+                <input type="checkbox" defaultChecked />
+              </div>
+              <div className="setting-item">
+                <label>Auto-save</label>
+                <input type="checkbox" defaultChecked />
+              </div>
+            </div>
+          </div>
+        )}
+
         <nav className="app-nav">
           <button 
             className={`nav-button ${view === 'workouts' ? 'active' : ''}`}
