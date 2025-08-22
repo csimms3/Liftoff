@@ -55,6 +55,20 @@ export default function App() {
 
   // Settings menu state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
+  // Theme state
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('liftoff-theme');
+    return (savedTheme as 'light' | 'dark') || 'light';
+  });
+  
+  /**
+   * Apply theme to document body and save to localStorage
+   */
+  useEffect(() => {
+    document.body.setAttribute('data-theme', theme);
+    localStorage.setItem('liftoff-theme', theme);
+  }, [theme]);
 
   /**
    * Load all workouts from the backend API
@@ -412,15 +426,24 @@ export default function App() {
             <h1>🏋️ Liftoff</h1>
             <p>Track your workouts and build strength</p>
           </div>
-          <button 
-            className="hamburger-menu"
-            onClick={() => setIsSettingsOpen(!isSettingsOpen)}
-            aria-label="Settings menu"
-          >
-            <span></span>
-            <span></span>
-            <span></span>
-          </button>
+          <div className="header-controls">
+            <button 
+              className="theme-toggle"
+              onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+              aria-label={`Switch to ${theme === 'light' ? 'dark' : 'light'} theme`}
+            >
+              {theme === 'light' ? '🌙' : '☀️'}
+            </button>
+            <button 
+              className="hamburger-menu"
+              onClick={() => setIsSettingsOpen(!isSettingsOpen)}
+              aria-label="Settings menu"
+            >
+              <span></span>
+              <span></span>
+              <span></span>
+            </button>
+          </div>
         </div>
         
         {isSettingsOpen && (
@@ -438,10 +461,12 @@ export default function App() {
             <div className="settings-content">
               <div className="setting-item">
                 <label>Theme</label>
-                <select defaultValue="light">
+                <select 
+                  value={theme} 
+                  onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
+                >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
-                  <option value="auto">Auto</option>
                 </select>
               </div>
               <div className="setting-item">
