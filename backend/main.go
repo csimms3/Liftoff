@@ -301,8 +301,6 @@ func main() {
 			c.JSON(http.StatusOK, sessions)
 		})
 
-
-
 		// Progress routes
 		api.GET("/progress", func(c *gin.Context) {
 			progress, err := sessionRepo.GetProgressData(c.Request.Context())

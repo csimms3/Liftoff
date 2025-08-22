@@ -742,11 +742,39 @@ export default function App() {
 
         {view === 'library' && (
           <WorkoutLibrary 
-            onWorkoutCreated={handleWorkoutCreated}
             onExerciseSelected={addExerciseFromLibrary}
           />
         )}
       </main>
+
+      <footer className="app-footer">
+        <div className="footer-content">
+          <div className="footer-section">
+            <h4>🏋️ Liftoff</h4>
+            <p>Track your workouts and build strength</p>
+          </div>
+          <div className="footer-section">
+            <h4>Features</h4>
+            <ul>
+              <li>Workout Management</li>
+              <li>Progress Tracking</li>
+              <li>Exercise Library</li>
+              <li>Session Tracking</li>
+            </ul>
+          </div>
+          <div className="footer-section">
+            <h4>Quick Links</h4>
+            <ul>
+              <li><button onClick={() => setView('workouts')}>Workouts</button></li>
+              <li><button onClick={() => setView('progress')}>Progress</button></li>
+              <li><button onClick={() => setView('library')}>Library</button></li>
+            </ul>
+          </div>
+        </div>
+        <div className="footer-bottom">
+          <p>&copy; 2025 Liftoff. Built with React & Go.</p>
+        </div>
+      </footer>
     </div>
   )
 }
