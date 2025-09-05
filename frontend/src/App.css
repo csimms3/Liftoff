@@ -619,8 +619,8 @@ input::placeholder, textarea::placeholder {
 }
 
 .exercise-card:hover {
-  border-color: #3b82f6;
-  background: #f0f9ff;
+  border-color: var(--accent-color);
+  background: var(--bg-secondary);
 }
 
 .exercise-header {
@@ -633,12 +633,12 @@ input::placeholder, textarea::placeholder {
 .exercise-header h4 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .exercise-stats {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 0.9rem;
   margin: 0;
 }
@@ -648,11 +648,12 @@ input::placeholder, textarea::placeholder {
    ========================================================================== */
 
 .session-view {
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 16px;
   padding: 2rem;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 6px var(--shadow-color), 0 1px 3px var(--shadow-color);
+  border: 1px solid var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
 .session-header {
@@ -661,13 +662,13 @@ input::placeholder, textarea::placeholder {
   align-items: center;
   margin-bottom: 2rem;
   padding-bottom: 1rem;
-  border-bottom: 2px solid #f1f5f9;
+  border-bottom: 2px solid var(--border-color);
 }
 
 .session-header h2 {
   font-size: 1.8rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
 }
 
@@ -706,8 +707,8 @@ input::placeholder, textarea::placeholder {
 }
 
 .set-card {
-  background: white;
-  border: 2px solid #e2e8f0;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
   border-radius: 12px;
   padding: 1rem;
   cursor: pointer;
@@ -719,24 +720,24 @@ input::placeholder, textarea::placeholder {
 }
 
 .set-card:hover {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 12px var(--shadow-color);
 }
 
 .set-card.completed {
-  background: #f0fdf4;
-  border-color: #22c55e;
+  background: var(--bg-tertiary);
+  border-color: var(--success-color);
 }
 
 .set-number {
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   font-size: 0.9rem;
 }
 
 .set-details {
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -907,12 +908,12 @@ input::placeholder, textarea::placeholder {
 
 .empty-state {
   text-align: center;
-  color: #94a3b8;
+  color: var(--text-muted);
   font-style: italic;
   padding: 2rem;
-  background: #f8fafc;
+  background: var(--bg-tertiary);
   border-radius: 12px;
-  border: 2px dashed #e2e8f0;
+  border: 2px dashed var(--border-color);
 }
 
 .error-banner {
@@ -1046,10 +1047,10 @@ input::placeholder, textarea::placeholder {
 
 /* Exercise Cards */
 .workout-library .bg-white {
-  background: white;
+  background: var(--bg-secondary);
   border-radius: 16px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1);
-  border: 1px solid #f1f5f9;
+  box-shadow: 0 4px 6px var(--shadow-color), 0 1px 3px var(--shadow-color);
+  border: 1px solid var(--border-color);
   transition: all 0.3s ease;
   cursor: pointer;
   padding: 1.5rem;
@@ -1108,7 +1109,7 @@ input::placeholder, textarea::placeholder {
   align-items: center;
   font-size: 14px;
   padding: 0.5rem 0;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .workout-library .space-y-2 > div:last-child {
@@ -1116,18 +1117,18 @@ input::placeholder, textarea::placeholder {
 }
 
 .workout-library .space-y-2 span:first-child {
-  color: #6b7280;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 
 .workout-library .space-y-2 span:last-child {
-  color: #111827;
+  color: var(--text-primary);
   font-weight: 600;
 }
 
 /* Quick Add Button */
 .workout-library .bg-blue-600 {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
   color: white;
   border: none;
   border-radius: 12px;
