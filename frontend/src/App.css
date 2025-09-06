@@ -680,7 +680,7 @@ input::placeholder, textarea::placeholder {
   display: flex;
   align-items: center;
   gap: 1rem;
-  color: #64748b;
+  color: var(--text-secondary);
   font-size: 0.9rem;
 }
 
@@ -691,16 +691,16 @@ input::placeholder, textarea::placeholder {
 }
 
 .session-exercise {
-  background: #f8fafc;
+  background: var(--bg-tertiary);
   border-radius: 12px;
   padding: 1.5rem;
-  border: 2px solid #e2e8f0;
+  border: 2px solid var(--border-color);
 }
 
 .session-exercise h3 {
   font-size: 1.3rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin-bottom: 1rem;
 }
 
@@ -897,7 +897,7 @@ input::placeholder, textarea::placeholder {
   display: flex;
   gap: 1.5rem;
   font-size: 0.9rem;
-  color: #6b7280;
+  color: var(--text-secondary);
 }
 
 .workout-history-details span {
@@ -1086,13 +1086,13 @@ input::placeholder, textarea::placeholder {
 .workout-library .bg-white h3 {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #111827;
+  color: var(--text-primary);
   margin-bottom: 1rem;
   transition: color 0.2s ease;
 }
 
 .workout-library .bg-white:hover h3 {
-  color: #667eea;
+  color: var(--accent-color);
 }
 
 /* Category Badges */
@@ -1501,25 +1501,7 @@ input:disabled {
   box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
 }
 
-.btn-secondary {
-  padding: 8px 16px;
-  background-color: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.2s;
-}
-
-.btn-secondary:hover:not(:disabled) {
-  background-color: #5a6268;
-}
-
-.btn-secondary:disabled {
-  background-color: #adb5bd;
-  cursor: not-allowed;
-}
+/* Duplicate btn-secondary styles removed - using main definition above */
 
 /* Exercise form styling updates */
 .exercise-form h4 {
