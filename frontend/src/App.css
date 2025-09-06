@@ -17,6 +17,8 @@
   --success-color: #10b981;
   --danger-color: #ef4444;
   --warning-color: #f59e0b;
+  --button-primary: #3b82f6;
+  --button-primary-hover: #1d4ed8;
 }
 
 [data-theme="dark"] {
@@ -34,6 +36,8 @@
   --success-color: #34d399;
   --danger-color: #f87171;
   --warning-color: #fbbf24;
+  --button-primary: #1e40af;
+  --button-primary-hover: #1d4ed8;
 }
 
 /* ==========================================================================
@@ -416,7 +420,7 @@ input::placeholder, textarea::placeholder {
    ========================================================================== */
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+  background: linear-gradient(135deg, var(--button-primary) 0%, var(--button-primary-hover) 100%);
   color: white;
   border: none;
   padding: 0.75rem 1.5rem;
@@ -877,14 +881,14 @@ input::placeholder, textarea::placeholder {
 .workout-history-header h4 {
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--text-primary);
   margin: 0;
 }
 
 .workout-date {
   font-size: 0.9rem;
-  color: #6b7280;
-  background: #f3f4f6;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
   padding: 0.25rem 0.75rem;
   border-radius: 9999px;
 }
@@ -1128,7 +1132,7 @@ input::placeholder, textarea::placeholder {
 
 /* Quick Add Button */
 .workout-library .bg-blue-600 {
-  background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
+  background: linear-gradient(135deg, var(--button-primary) 0%, var(--button-primary-hover) 100%);
   color: white;
   border: none;
   border-radius: 12px;
