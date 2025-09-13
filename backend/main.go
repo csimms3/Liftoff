@@ -291,6 +291,34 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
 		})
 
+		api.PUT("/exercise-sets/:id", func(c *gin.Context) {
+			id := c.Param("id")
+			var input struct {
+				Reps   int      `json:"reps" binding:"required,min=1"`
+				Weight float64  `json:"weight" binding:"required,min=0.01"`
+				Notes  *string  `json:"notes"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			set := &models.ExerciseSet{
+				ID:       id,
+				Reps:     input.Reps,
+				Weight:   input.Weight,
+				Notes:    input.Notes,
+				Completed: true,
+			}
+
+			err := sessionRepo.UpdateExerciseSet(c.Request.Context(), set)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Set updated"})
+		})
+
 		// Workout history routes
 		api.GET("/sessions/completed", func(c *gin.Context) {
 			sessions, err := sessionRepo.GetCompletedSessions(c.Request.Context())

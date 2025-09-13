@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
+import { SetLoggingForm } from './components/SetLoggingForm'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise } from './api'
 import './App.css'
 
@@ -315,6 +316,19 @@ export default function App() {
       loadActiveSession() // Reload active session to update completed sets
     } catch {
       setError('Failed to complete set')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const logSet = async (setId: string, reps: number, weight: number, notes?: string) => {
+    try {
+      setLoading(true)
+      await apiService.updateSet(setId, reps, weight, notes)
+      loadActiveSession() // Reload active session to update logged sets
+    } catch (error) {
+      console.error('Failed to log set:', error)
+      setError('Failed to log set')
     } finally {
       setLoading(false)
     }
@@ -727,17 +741,13 @@ export default function App() {
                           {sessionExercise.sets?.length > 0 ? (
                             <div className="sets-grid">
                               {sessionExercise.sets.map((set, index) => (
-                                <div 
-                                  key={set.id} 
-                                  className={`set-card ${set.completed ? 'completed' : ''}`}
-                                  onClick={() => completeSet(sessionExercise.id, index)}
-                                >
-                                  <span className="set-number">Set {index + 1}</span>
-                                  <span className="set-details">
-                                    {set.reps} reps @ {set.weight} lbs
-                                  </span>
-                                  {set.completed && <span className="completed-check">✓</span>}
-                                </div>
+                                <SetLoggingForm
+                                  key={set.id}
+                                  set={set}
+                                  setIndex={index}
+                                  onLogSet={logSet}
+                                  loading={loading}
+                                />
                               ))}
                             </div>
                           ) : (

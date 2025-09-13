@@ -145,6 +145,13 @@ export class ApiService {
     })
   }
 
+  async updateSet(setId: string, reps: number, weight: number, notes?: string): Promise<void> {
+    return this.request<void>(`/exercise-sets/${setId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ reps, weight, notes }),
+    })
+  }
+
   async getProgressData(): Promise<ProgressData[]> {
     return this.request<ProgressData[]>('/progress')
   }
