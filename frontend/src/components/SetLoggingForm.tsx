@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ExerciseSet } from '../api'
+import type { ExerciseSet } from '../api'
 
 interface SetLoggingFormProps {
   set: ExerciseSet

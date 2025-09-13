@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetLoggingForm } from './components/SetLoggingForm'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
-import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise } from './api'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet } from './api'
 import './App.css'
 
 /**
