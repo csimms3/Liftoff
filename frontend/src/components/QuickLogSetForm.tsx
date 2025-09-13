@@ -1,17 +1,17 @@
 import { useState } from 'react'
-import { ExerciseSet } from '../api'
 
-interface SetLoggingFormProps {
-  set: ExerciseSet
-  setIndex: number
-  onLogSet: (setId: string, reps: number, weight: number, notes?: string) => Promise<void>
+interface QuickLogSetFormProps {
+  exerciseName: string
+  plannedReps: number
+  plannedWeight: number
+  onLogSet: (reps: number, weight: number, notes?: string) => Promise<void>
   loading?: boolean
 }
 
-export function SetLoggingForm({ set, setIndex, onLogSet, loading = false }: SetLoggingFormProps) {
-  const [reps, setReps] = useState(set.reps.toString())
-  const [weight, setWeight] = useState(set.weight.toString())
-  const [notes, setNotes] = useState(set.notes || '')
+export function QuickLogSetForm({ exerciseName, plannedReps, plannedWeight, onLogSet, loading = false }: QuickLogSetFormProps) {
+  const [reps, setReps] = useState(plannedReps.toString())
+  const [weight, setWeight] = useState(plannedWeight.toString())
+  const [notes, setNotes] = useState('')
   const [isLogging, setIsLogging] = useState(false)
   const [showForm, setShowForm] = useState(false)
 
@@ -31,7 +31,12 @@ export function SetLoggingForm({ set, setIndex, onLogSet, loading = false }: Set
 
     try {
       setIsLogging(true)
-      await onLogSet(set.id, repsNum, weightNum, notes.trim() || undefined)
+      await onLogSet(repsNum, weightNum, notes.trim() || undefined)
+      // Reset form after successful logging
+      setReps(plannedReps.toString())
+      setWeight(plannedWeight.toString())
+      setNotes('')
+      setShowForm(false)
     } catch (error) {
       console.error('Failed to log set:', error)
       alert('Failed to log set. Please try again.')
@@ -40,26 +45,11 @@ export function SetLoggingForm({ set, setIndex, onLogSet, loading = false }: Set
     }
   }
 
-  if (set.completed) {
-    return (
-      <div className="set-card completed">
-        <span className="set-number">Set {setIndex + 1}</span>
-        <span className="set-details">
-          {set.reps} reps @ {set.weight} lbs
-        </span>
-        {set.notes && (
-          <span className="set-notes">Notes: {set.notes}</span>
-        )}
-        <span className="completed-check">✓</span>
-      </div>
-    )
-  }
-
   if (showForm) {
     return (
-      <div className="set-card logging-form">
-        <span className="set-number">Set {setIndex + 1}</span>
-        <div className="set-inputs">
+      <div className="quick-log-form">
+        <h4>Log Set: {exerciseName}</h4>
+        <div className="form-inputs">
           <div className="input-group">
             <label>Reps</label>
             <input
@@ -83,8 +73,18 @@ export function SetLoggingForm({ set, setIndex, onLogSet, loading = false }: Set
               placeholder="0.00"
             />
           </div>
+          <div className="input-group">
+            <label>Notes (optional)</label>
+            <input
+              type="text"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              disabled={loading || isLogging}
+              placeholder="Add notes..."
+            />
+          </div>
         </div>
-        <div className="set-actions">
+        <div className="form-actions">
           <button
             className="btn-secondary"
             onClick={() => setShowForm(false)}
@@ -105,20 +105,14 @@ export function SetLoggingForm({ set, setIndex, onLogSet, loading = false }: Set
   }
 
   return (
-    <div className="set-card planned">
-      <span className="set-number">Set {setIndex + 1}</span>
-      <span className="set-details">
-        {set.reps} reps @ {set.weight} lbs
-      </span>
-      <div className="set-actions">
-        <button
-          className="btn-primary"
-          onClick={() => setShowForm(true)}
-          disabled={loading}
-        >
-          Log Set
-        </button>
-      </div>
+    <div className="quick-log-trigger">
+      <button
+        className="btn-primary"
+        onClick={() => setShowForm(true)}
+        disabled={loading}
+      >
+        Quick Log Set
+      </button>
     </div>
   )
 }

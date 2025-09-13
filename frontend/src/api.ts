@@ -152,6 +152,20 @@ export class ApiService {
     })
   }
 
+  async addExerciseToSession(sessionId: string, exerciseId: string): Promise<SessionExercise> {
+    return this.request<SessionExercise>(`/sessions/${sessionId}/exercises`, {
+      method: 'POST',
+      body: JSON.stringify({ exerciseId }),
+    })
+  }
+
+  async createSet(sessionExerciseId: string, reps: number, weight: number): Promise<ExerciseSet> {
+    return this.request<ExerciseSet>('/exercise-sets', {
+      method: 'POST',
+      body: JSON.stringify({ sessionExerciseId, reps, weight }),
+    })
+  }
+
   async getProgressData(): Promise<ProgressData[]> {
     return this.request<ProgressData[]>('/progress')
   }

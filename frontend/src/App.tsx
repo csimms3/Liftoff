@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetLoggingForm } from './components/SetLoggingForm'
+import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise } from './api'
 import './App.css'
 
@@ -328,6 +329,25 @@ export default function App() {
       loadActiveSession() // Reload active session to update logged sets
     } catch (error) {
       console.error('Failed to log set:', error)
+      setError('Failed to log set')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const quickLogSet = async (exerciseId: string, reps: number, weight: number, notes?: string) => {
+    try {
+      setLoading(true)
+      // Create a temporary session exercise and set for logging
+      const session = await apiService.createSession(currentWorkout!.id)
+      const sessionExercise = await apiService.addExerciseToSession(session.id, exerciseId)
+      const set = await apiService.createSet(sessionExercise.id, reps, weight)
+      await apiService.updateSet(set.id, reps, weight, notes)
+      // End the session immediately after logging
+      await apiService.endSession(session.id)
+      loadProgressData() // Refresh progress data
+    } catch (error) {
+      console.error('Failed to quick log set:', error)
       setError('Failed to log set')
     } finally {
       setLoading(false)
@@ -696,6 +716,13 @@ export default function App() {
                           <span>{`${exercise.sets} sets × ${exercise.reps} reps`}</span>
                           {exercise.weight > 0 && <span>{`${exercise.weight} lbs`}</span>}
                         </div>
+                        <QuickLogSetForm
+                          exerciseName={exercise.name}
+                          plannedReps={exercise.reps}
+                          plannedWeight={exercise.weight}
+                          onLogSet={(reps, weight, notes) => quickLogSet(exercise.id, reps, weight, notes)}
+                          loading={loading}
+                        />
                       </div>
                     )) || <p>No exercises yet</p>}
                   </div>

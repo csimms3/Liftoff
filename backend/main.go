@@ -294,9 +294,9 @@ func main() {
 		api.PUT("/exercise-sets/:id", func(c *gin.Context) {
 			id := c.Param("id")
 			var input struct {
-				Reps   int      `json:"reps" binding:"required,min=1"`
-				Weight float64  `json:"weight" binding:"required,min=0.01"`
-				Notes  *string  `json:"notes"`
+				Reps   int     `json:"reps" binding:"required,min=1"`
+				Weight float64 `json:"weight" binding:"required,min=0.01"`
+				Notes  *string `json:"notes"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -304,10 +304,10 @@ func main() {
 			}
 
 			set := &models.ExerciseSet{
-				ID:       id,
-				Reps:     input.Reps,
-				Weight:   input.Weight,
-				Notes:    input.Notes,
+				ID:        id,
+				Reps:      input.Reps,
+				Weight:    input.Weight,
+				Notes:     input.Notes,
 				Completed: true,
 			}
 
