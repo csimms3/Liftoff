@@ -667,27 +667,39 @@ export default function App() {
                         disabled={loading}
                       />
                       <div className="exercise-inputs">
-                        <input
-                          type="number"
-                          placeholder="Sets"
-                          value={newExercise.sets}
-                          onChange={(e) => setNewExercise({...newExercise, sets: parseInt(e.target.value) || 0})}
-                          disabled={loading}
-                        />
-                        <input
-                          type="number"
-                          placeholder="Reps"
-                          value={newExercise.reps}
-                          onChange={(e) => setNewExercise({...newExercise, reps: parseInt(e.target.value) || 0})}
-                          disabled={loading}
-                        />
-                        <input
-                          type="number"
-                          placeholder="Weight (lbs)"
-                          value={newExercise.weight}
-                          onChange={(e) => setNewExercise({...newExercise, weight: parseFloat(e.target.value) || 0})}
-                          disabled={loading}
-                        />
+                        <div className="input-group">
+                          <label htmlFor="sets-input">Sets</label>
+                          <input
+                            id="sets-input"
+                            type="number"
+                            placeholder="Number of sets"
+                            value={newExercise.sets}
+                            onChange={(e) => setNewExercise({...newExercise, sets: parseInt(e.target.value) || 0})}
+                            disabled={loading}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="reps-input">Reps</label>
+                          <input
+                            id="reps-input"
+                            type="number"
+                            placeholder="Reps per set"
+                            value={newExercise.reps}
+                            onChange={(e) => setNewExercise({...newExercise, reps: parseInt(e.target.value) || 0})}
+                            disabled={loading}
+                          />
+                        </div>
+                        <div className="input-group">
+                          <label htmlFor="weight-input">Weight (lbs)</label>
+                          <input
+                            id="weight-input"
+                            type="number"
+                            placeholder="Weight in pounds"
+                            value={newExercise.weight}
+                            onChange={(e) => setNewExercise({...newExercise, weight: parseFloat(e.target.value) || 0})}
+                            disabled={loading}
+                          />
+                        </div>
                       </div>
                       <button 
                         className="btn-primary"
