@@ -104,6 +104,51 @@ export default function App() {
   };
 
   /**
+   * Determines the weight type for an exercise based on its name
+   */
+  const getWeightType = (exerciseName: string): string => {
+    const name = exerciseName.toLowerCase();
+    
+    // Bodyweight exercises
+    const bodyweightKeywords = [
+      'push-up', 'pull-up', 'chin-up', 'dip', 'plank', 'crunch', 'sit-up',
+      'lunge', 'burpee', 'mountain climber', 'jump squat', 'high knee',
+      'side plank', 'russian twist', 'leg raise', 'pike', 'bear crawl',
+      'wall sit', 'jumping jack', 'squat jump', 'pistol squat', 'handstand'
+    ];
+    
+    // Machine-based exercises
+    const machineKeywords = [
+      'lat pulldown', 'cable', 'machine', 'leg press', 'chest press',
+      'seated row', 'tricep pushdown', 'leg extension', 'leg curl',
+      'chest fly', 'shoulder press machine', 'ab crunch machine'
+    ];
+    
+    // Check for bodyweight exercises
+    if (bodyweightKeywords.some(keyword => name.includes(keyword))) {
+      return 'Bodyweight';
+    }
+    
+    // Check for machine exercises
+    if (machineKeywords.some(keyword => name.includes(keyword))) {
+      return 'Machine';
+    }
+    
+    // Check for weighted exercises (barbell, dumbbell, kettlebell, etc.)
+    const weightedKeywords = [
+      'barbell', 'dumbbell', 'kettlebell', 'weighted', 'deadlift',
+      'squat', 'press', 'row', 'curl', 'extension', 'raise', 'fly'
+    ];
+    
+    if (weightedKeywords.some(keyword => name.includes(keyword))) {
+      return 'Weighted';
+    }
+    
+    // Default to "Weighted" for exercises that don't match bodyweight patterns
+    return 'Weighted';
+  };
+
+  /**
    * Load all workouts from the backend API
    * 
    * Updates the workouts state with fetched data and handles loading states.
@@ -677,7 +722,7 @@ export default function App() {
                           <option value="">Select an exercise...</option>
                           {exerciseTemplates.map(template => (
                             <option key={template.name} value={template.name}>
-                              {template.name} ({template.category})
+                              {template.name} ({template.category}) - {getWeightType(template.name)}
                             </option>
                           ))}
                         </select>

@@ -50,6 +50,53 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 	};
 
 	/**
+	 * Determines the weight type for an exercise based on its name
+	 * @param exerciseName - The name of the exercise
+	 * @returns String indicating the weight type (e.g., "Weighted", "Bodyweight", "Machine")
+	 */
+	const getWeightType = (exerciseName: string): string => {
+		const name = exerciseName.toLowerCase();
+		
+		// Bodyweight exercises
+		const bodyweightKeywords = [
+			'push-up', 'pull-up', 'chin-up', 'dip', 'plank', 'crunch', 'sit-up',
+			'lunge', 'burpee', 'mountain climber', 'jump squat', 'high knee',
+			'side plank', 'russian twist', 'leg raise', 'pike', 'bear crawl',
+			'wall sit', 'jumping jack', 'squat jump', 'pistol squat', 'handstand'
+		];
+		
+		// Machine-based exercises
+		const machineKeywords = [
+			'lat pulldown', 'cable', 'machine', 'leg press', 'chest press',
+			'seated row', 'tricep pushdown', 'leg extension', 'leg curl',
+			'chest fly', 'shoulder press machine', 'ab crunch machine'
+		];
+		
+		// Check for bodyweight exercises
+		if (bodyweightKeywords.some(keyword => name.includes(keyword))) {
+			return 'Bodyweight';
+		}
+		
+		// Check for machine exercises
+		if (machineKeywords.some(keyword => name.includes(keyword))) {
+			return 'Machine';
+		}
+		
+		// Check for weighted exercises (barbell, dumbbell, kettlebell, etc.)
+		const weightedKeywords = [
+			'barbell', 'dumbbell', 'kettlebell', 'weighted', 'deadlift',
+			'squat', 'press', 'row', 'curl', 'extension', 'raise', 'fly'
+		];
+		
+		if (weightedKeywords.some(keyword => name.includes(keyword))) {
+			return 'Weighted';
+		}
+		
+		// Default to "Weighted" for exercises that don't match bodyweight patterns
+		return 'Weighted';
+	};
+
+	/**
 	 * Returns CSS classes for category badge styling
 	 * @param category - The exercise category (Chest, Back, Shoulders, etc.)
 	 * @returns CSS classes for the category badge
@@ -174,9 +221,9 @@ export const WorkoutLibrary: React.FC<WorkoutLibraryProps> = ({ onExerciseSelect
 								<span className="font-medium text-gray-900">{template.default_reps}</span>
 							</div>
 							<div className="flex justify-between text-sm">
-								<span className="text-gray-500">Weight:</span>
+								<span className="text-gray-500">Type:</span>
 								<span className="font-medium text-gray-900">
-									{template.default_weight > 0 ? `${template.default_weight} lbs` : 'Bodyweight'}
+									{getWeightType(template.name)}
 								</span>
 							</div>
 						</div>
