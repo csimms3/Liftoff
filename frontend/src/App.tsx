@@ -63,6 +63,12 @@ export default function App() {
     const savedTheme = localStorage.getItem('liftoff-theme');
     return (savedTheme as 'light' | 'dark') || 'light';
   });
+
+  // Weight unit state
+  const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>(() => {
+    const savedUnit = localStorage.getItem('liftoff-weight-unit');
+    return (savedUnit as 'lbs' | 'kg') || 'lbs';
+  });
   
   /**
    * Apply theme to document body and save to localStorage
@@ -71,6 +77,31 @@ export default function App() {
     document.body.setAttribute('data-theme', theme);
     localStorage.setItem('liftoff-theme', theme);
   }, [theme]);
+
+  /**
+   * Save weight unit to localStorage
+   */
+  useEffect(() => {
+    localStorage.setItem('liftoff-weight-unit', weightUnit);
+  }, [weightUnit]);
+
+  /**
+   * Convert weight between units
+   */
+  const convertWeight = (weight: number, fromUnit: 'lbs' | 'kg', toUnit: 'lbs' | 'kg'): number => {
+    if (fromUnit === toUnit) return weight;
+    if (fromUnit === 'lbs' && toUnit === 'kg') return weight * 0.453592;
+    if (fromUnit === 'kg' && toUnit === 'lbs') return weight * 2.20462;
+    return weight;
+  };
+
+  /**
+   * Format weight with unit
+   */
+  const formatWeight = (weight: number): string => {
+    const convertedWeight = convertWeight(weight, 'lbs', weightUnit);
+    return `${convertedWeight.toFixed(1)} ${weightUnit}`;
+  };
 
   /**
    * Load all workouts from the backend API
@@ -505,7 +536,10 @@ export default function App() {
               </div>
               <div className="setting-item">
                 <label>Units</label>
-                <select defaultValue="lbs">
+                <select 
+                  value={weightUnit} 
+                  onChange={(e) => setWeightUnit(e.target.value as 'lbs' | 'kg')}
+                >
                   <option value="lbs">Pounds (lbs)</option>
                   <option value="kg">Kilograms (kg)</option>
                 </select>
@@ -690,11 +724,11 @@ export default function App() {
                           />
                         </div>
                         <div className="input-group">
-                          <label htmlFor="weight-input">Weight (lbs)</label>
+                          <label htmlFor="weight-input">Weight ({weightUnit})</label>
                           <input
                             id="weight-input"
                             type="number"
-                            placeholder="Weight in pounds"
+                            placeholder={`Weight in ${weightUnit}`}
                             value={newExercise.weight}
                             onChange={(e) => setNewExercise({...newExercise, weight: parseFloat(e.target.value) || 0})}
                             disabled={loading}
@@ -726,7 +760,7 @@ export default function App() {
                         </div>
                         <div className="exercise-stats">
                           <span>{`${exercise.sets} sets × ${exercise.reps} reps`}</span>
-                          {exercise.weight > 0 && <span>{`${exercise.weight} lbs`}</span>}
+                          {exercise.weight > 0 && <span>{formatWeight(exercise.weight)}</span>}
                         </div>
                         <QuickLogSetForm
                           exerciseName={exercise.name}
@@ -734,6 +768,7 @@ export default function App() {
                           plannedWeight={exercise.weight}
                           onLogSet={(reps, weight, notes) => quickLogSet(exercise.id, reps, weight, notes)}
                           loading={loading}
+                          weightUnit={weightUnit}
                         />
                       </div>
                     )) || <p>No exercises yet</p>}
@@ -827,8 +862,8 @@ export default function App() {
                           <h5>{data.exerciseName}</h5>
                           <p className="progress-date">{new Date(data.date).toLocaleDateString()}</p>
                           <div className="progress-stats">
-                            <span>Max Weight: {data.maxWeight} lbs</span>
-                            <span>Volume: {data.totalVolume} lbs</span>
+                            <span>Max Weight: {formatWeight(data.maxWeight)}</span>
+                            <span>Volume: {formatWeight(data.totalVolume)}</span>
                           </div>
                         </div>
                       ))}

@@ -6,9 +6,10 @@ interface QuickLogSetFormProps {
   plannedWeight: number
   onLogSet: (reps: number, weight: number, notes?: string) => Promise<void>
   loading?: boolean
+  weightUnit?: 'lbs' | 'kg'
 }
 
-export function QuickLogSetForm({ exerciseName, plannedReps, plannedWeight, onLogSet, loading = false }: QuickLogSetFormProps) {
+export function QuickLogSetForm({ exerciseName, plannedReps, plannedWeight, onLogSet, loading = false, weightUnit = 'lbs' }: QuickLogSetFormProps) {
   const [reps, setReps] = useState(plannedReps.toString())
   const [weight, setWeight] = useState(plannedWeight.toString())
   const [notes, setNotes] = useState('')
@@ -62,7 +63,7 @@ export function QuickLogSetForm({ exerciseName, plannedReps, plannedWeight, onLo
             />
           </div>
           <div className="input-group">
-            <label>Weight (lbs)</label>
+            <label>Weight ({weightUnit})</label>
             <input
               type="number"
               min="0.01"
