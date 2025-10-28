@@ -1038,3 +1038,92 @@ func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templ
 
 	return workout, nil
 }
+
+/**
+ * CreateDinoGameScore creates a new dino game score in the database
+ */
+func (r *WorkoutRepository) CreateDinoGameScore(ctx context.Context, score int) (*models.DinoGameScore, error) {
+	id := uuid.New().String()
+	now := time.Now()
+
+	if r.useSQLite {
+		return r.createDinoGameScoreSQLite(ctx, id, score, now)
+	}
+	return r.createDinoGameScorePostgres(ctx, id, score, now)
+}
+
+func (r *WorkoutRepository) createDinoGameScorePostgres(ctx context.Context, id string, score int, now time.Time) (*models.DinoGameScore, error) {
+	query := `
+		INSERT INTO dino_game_scores (id, score, created_at)
+		VALUES ($1, $2, $3)
+		RETURNING id, score, created_at
+	`
+
+	var dinoScore models.DinoGameScore
+	err := r.db.QueryRow(ctx, query, id, score, now).Scan(
+		&dinoScore.ID, &dinoScore.Score, &dinoScore.CreatedAt,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dino game score: %w", err)
+	}
+
+	return &dinoScore, nil
+}
+
+func (r *WorkoutRepository) createDinoGameScoreSQLite(ctx context.Context, id string, score int, now time.Time) (*models.DinoGameScore, error) {
+	query := `
+		INSERT INTO dino_game_scores (id, score, created_at)
+		VALUES (?, ?, ?)
+	`
+
+	_, err := r.sqlite.ExecContext(ctx, query, id, score, now)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dino game score: %w", err)
+	}
+
+	return &models.DinoGameScore{
+		ID:        id,
+		Score:     score,
+		CreatedAt: now,
+	}, nil
+}
+
+/**
+ * GetDinoGameHighScore retrieves the highest score from the dino game
+ */
+func (r *WorkoutRepository) GetDinoGameHighScore(ctx context.Context) (int, error) {
+	if r.useSQLite {
+		return r.getDinoGameHighScoreSQLite(ctx)
+	}
+	return r.getDinoGameHighScorePostgres(ctx)
+}
+
+func (r *WorkoutRepository) getDinoGameHighScorePostgres(ctx context.Context) (int, error) {
+	query := `
+		SELECT COALESCE(MAX(score), 0)
+		FROM dino_game_scores
+	`
+
+	var highScore int
+	err := r.db.QueryRow(ctx, query).Scan(&highScore)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get high score: %w", err)
+	}
+
+	return highScore, nil
+}
+
+func (r *WorkoutRepository) getDinoGameHighScoreSQLite(ctx context.Context) (int, error) {
+	query := `
+		SELECT COALESCE(MAX(score), 0)
+		FROM dino_game_scores
+	`
+
+	var highScore int
+	err := r.sqlite.QueryRowContext(ctx, query).Scan(&highScore)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get high score: %w", err)
+	}
+
+	return highScore, nil
+}

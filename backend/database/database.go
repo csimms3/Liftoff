@@ -168,6 +168,11 @@ func createSQLiteTables(db *sql.DB) error {
 			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 		)`,
+		`CREATE TABLE IF NOT EXISTS dino_game_scores (
+			id TEXT PRIMARY KEY,
+			score INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, query := range queries {

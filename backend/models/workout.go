@@ -92,3 +92,10 @@ type ExerciseSet struct {
 	CreatedAt         time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt         time.Time `json:"updated_at" db:"updated_at"`
 }
+
+// DinoGameScore represents a score from the Dino Game easter egg
+type DinoGameScore struct {
+	ID        string    `json:"id" db:"id"`
+	Score     int       `json:"score" db:"score"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}

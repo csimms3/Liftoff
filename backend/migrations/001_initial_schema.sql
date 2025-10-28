@@ -55,6 +55,13 @@ CREATE TABLE IF NOT EXISTS exercise_sets (
     FOREIGN KEY (session_exercise_id) REFERENCES session_exercises(id) ON DELETE CASCADE
 );
 
+-- Create dino_game_scores table
+CREATE TABLE IF NOT EXISTS dino_game_scores (
+    id VARCHAR(36) PRIMARY KEY,
+    score INTEGER NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_exercises_workout_id ON exercises(workout_id);
 CREATE INDEX IF NOT EXISTS idx_workout_sessions_workout_id ON workout_sessions(workout_id);

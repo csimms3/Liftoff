@@ -338,6 +338,33 @@ func main() {
 			}
 			c.JSON(http.StatusOK, progress)
 		})
+
+		// Dino game routes
+		api.POST("/dino-game/score", func(c *gin.Context) {
+			var input struct {
+				Score int `json:"score" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+
+			score, err := workoutRepo.CreateDinoGameScore(c.Request.Context(), input.Score)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, score)
+		})
+
+		api.GET("/dino-game/high-score", func(c *gin.Context) {
+			highScore, err := workoutRepo.GetDinoGameHighScore(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"highScore": highScore})
+		})
 	}
 
 	// Health check
