@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetLoggingForm } from './components/SetLoggingForm'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
+import { DinoGame } from './components/DinoGame'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet } from './api'
 import './App.css'
 
@@ -57,6 +58,9 @@ export default function App() {
 
   // Settings menu state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  
+  // Dino game state
+  const [isDinoGameOpen, setIsDinoGameOpen] = useState(false);
   
   // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -533,7 +537,7 @@ export default function App() {
       <header className="app-header">
         <div className="header-content">
           <div className="header-left">
-            <h1>🏋️ Liftoff</h1>
+            <h1 style={{ cursor: 'pointer' }} onClick={() => setIsDinoGameOpen(true)}>🏋️ Liftoff</h1>
             <p>Track your workouts and build strength</p>
           </div>
           <div className="header-controls">
@@ -986,6 +990,8 @@ export default function App() {
           <p>&copy; 2025 Liftoff. Built with React & Go.</p>
         </div>
       </footer>
+
+      <DinoGame isOpen={isDinoGameOpen} onClose={() => setIsDinoGameOpen(false)} />
     </div>
   )
 }
