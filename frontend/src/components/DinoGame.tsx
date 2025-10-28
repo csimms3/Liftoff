@@ -77,8 +77,8 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
         dino.y += dino.velocityY;
         dino.velocityY += 0.8; // gravity
         
-        if (dino.y >= 150) {
-          dino.y = 150;
+        if (dino.y >= 120) {
+          dino.y = 120;
           dino.isJumping = false;
           dino.velocityY = 0;
         }
@@ -152,7 +152,7 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
   // Reset game when opened
   useEffect(() => {
     if (isOpen) {
-      dinoRef.current = { x: 50, y: 150, velocityY: 0, isJumping: false };
+      dinoRef.current = { x: 50, y: 120, velocityY: 0, isJumping: false };
       obstaclesRef.current = [];
       gameSpeedRef.current = 5;
       scoreRef.current = 0;
@@ -164,8 +164,12 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
   const timeRef = useRef(0);
 
   const handleRestart = () => {
+    dinoRef.current = { x: 50, y: 120, velocityY: 0, isJumping: false };
+    obstaclesRef.current = [];
+    gameSpeedRef.current = 5;
+    scoreRef.current = 0;
+    setScore(0);
     setGameState('waiting');
-    handleJump();
   };
 
   if (!isOpen) return null;
