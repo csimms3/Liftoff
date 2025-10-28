@@ -213,6 +213,26 @@ export class ApiService {
 	async getExerciseTemplates(): Promise<ExerciseTemplate[]> {
 		return this.request<ExerciseTemplate[]>('/exercise-templates')
 	}
+
+	async saveDinoGameScore(score: number): Promise<void> {
+		const response = await fetch(`${this.baseUrl}/dino-game/score`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ score })
+		});
+		if (!response.ok) {
+			throw new Error('Failed to save dino game score');
+		}
+	}
+
+	async getDinoGameHighScore(): Promise<number> {
+		const response = await fetch(`${this.baseUrl}/dino-game/high-score`);
+		if (!response.ok) {
+			throw new Error('Failed to fetch high score');
+		}
+		const data = await response.json();
+		return data.highScore || 0;
+	}
 }
 
 export interface ProgressData {

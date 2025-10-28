@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { ApiService } from '../api';
+
+const apiService = new ApiService();
 
 interface DinoGameProps {
   isOpen: boolean;
@@ -9,6 +12,7 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<'waiting' | 'playing' | 'gameOver'>('waiting');
   const [score, setScore] = useState(0);
+  const [highScore, setHighScore] = useState(0);
   const gameLoopRef = useRef<number>();
   const animationRef = useRef<number>();
   
@@ -115,6 +119,11 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
           dino.y + 30 > obstacle.y
         ) {
           setGameState('gameOver');
+          // Save score if it's a new high score
+          if (scoreRef.current > highScore) {
+            apiService.saveDinoGameScore(scoreRef.current).catch(console.error);
+            setHighScore(scoreRef.current);
+          }
           return;
         }
 
@@ -149,9 +158,10 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
     };
   }, [isOpen, gameState]);
 
-  // Reset game when opened
+  // Load high score when opened
   useEffect(() => {
     if (isOpen) {
+      apiService.getDinoGameHighScore().then(setHighScore).catch(console.error);
       dinoRef.current = { x: 50, y: 120, velocityY: 0, isJumping: false };
       obstaclesRef.current = [];
       gameSpeedRef.current = 5;
@@ -206,6 +216,8 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
           {gameState === 'gameOver' && (
             <div className="dino-game-message">
               <h3>Game Over! Score: {score}</h3>
+              {score > highScore && <p style={{color: '#3b82f6', fontWeight: 'bold'}}>🏆 New High Score! 🏆</p>}
+              {highScore > 0 && <p style={{color: '#666'}}>High Score: {highScore}</p>}
               <button className="dino-game-button" onClick={handleRestart}>
                 Play Again
               </button>
@@ -215,6 +227,7 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
           {gameState === 'playing' && (
             <div className="dino-game-info">
               <div>Score: {score}</div>
+              {highScore > 0 && <div>High Score: {highScore}</div>}
               <div>Press Space to Jump!</div>
             </div>
           )}

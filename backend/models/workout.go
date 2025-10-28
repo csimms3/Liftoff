@@ -59,26 +59,26 @@ type ExerciseTemplate struct {
 
 // WorkoutSession represents an active or completed workout session
 type WorkoutSession struct {
-	ID        string            `json:"id" db:"id"`
-	WorkoutID string            `json:"workout_id" db:"workout_id"`
-	Workout   *Workout          `json:"workout" db:"-"`
-	StartedAt time.Time         `json:"started_at" db:"started_at"`
-	EndedAt   *time.Time        `json:"ended_at" db:"ended_at"`
-	IsActive  bool              `json:"is_active" db:"is_active"`
+	ID        string             `json:"id" db:"id"`
+	WorkoutID string             `json:"workout_id" db:"workout_id"`
+	Workout   *Workout           `json:"workout" db:"-"`
+	StartedAt time.Time          `json:"started_at" db:"started_at"`
+	EndedAt   *time.Time         `json:"ended_at" db:"ended_at"`
+	IsActive  bool               `json:"is_active" db:"is_active"`
 	Exercises []*SessionExercise `json:"exercises" db:"-"`
-	CreatedAt time.Time         `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at" db:"updated_at"`
+	CreatedAt time.Time          `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time          `json:"updated_at" db:"updated_at"`
 }
 
 // SessionExercise represents an exercise performed during a workout session
 type SessionExercise struct {
-	ID         string        `json:"id" db:"id"`
-	SessionID  string        `json:"session_id" db:"session_id"`
-	ExerciseID string        `json:"exercise_id" db:"exercise_id"`
-	Exercise   *Exercise     `json:"exercise" db:"-"`
+	ID         string         `json:"id" db:"id"`
+	SessionID  string         `json:"session_id" db:"session_id"`
+	ExerciseID string         `json:"exercise_id" db:"exercise_id"`
+	Exercise   *Exercise      `json:"exercise" db:"-"`
 	Sets       []*ExerciseSet `json:"sets" db:"-"`
-	CreatedAt  time.Time     `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time     `json:"updated_at" db:"updated_at"`
+	CreatedAt  time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at" db:"updated_at"`
 }
 
 // ExerciseSet represents a single set of an exercise during a session
