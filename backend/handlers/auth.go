@@ -114,6 +114,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	// Check if user already exists
 	existing, err := h.userRepo.GetByEmail(c.Request.Context(), email)
 	if err != nil {
+		log.Printf("Register GetByEmail error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		return
 	}
@@ -124,12 +125,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	passwordHash, err := auth.HashPassword(req.Password)
 	if err != nil {
+		log.Printf("Register HashPassword error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		return
 	}
 
 	user, err := h.userRepo.CreateUser(c.Request.Context(), email, passwordHash)
 	if err != nil {
+		log.Printf("Register CreateUser error: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Registration failed"})
 		return
 	}

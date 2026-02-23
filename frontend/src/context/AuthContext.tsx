@@ -35,7 +35,8 @@ interface AuthContextType extends AuthState {
 }
 
 const AUTH_KEY = 'liftoff-auth'
-const API_BASE = 'http://localhost:8080/api'
+// Use relative URL - Vite proxies /api to backend in dev
+const API_BASE = '/api'
 
 interface StoredAuth {
   token: string
@@ -94,6 +95,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       applyAuth(stored)
     }
     setIsLoading(false)
+  }, [applyAuth])
+
+  // When API gets 401, sync auth state (logout)
+  useEffect(() => {
+    const handler = () => {
+      storeAuth(null)
+      applyAuth(null)
+    }
+    window.addEventListener('liftoff:unauthorized', handler)
+    return () => window.removeEventListener('liftoff:unauthorized', handler)
   }, [applyAuth])
 
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {

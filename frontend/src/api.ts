@@ -1,4 +1,5 @@
-const API_BASE = 'http://localhost:8080/api'
+// Use relative URL - Vite proxies /api to backend in dev
+const API_BASE = '/api'
 const AUTH_KEY = 'liftoff-auth'
 
 function getAuthToken(): string | null {
@@ -10,6 +11,11 @@ function getAuthToken(): string | null {
   } catch {
     return null
   }
+}
+
+/** Dispatch when API gets 401 - AuthContext listens and logs out */
+export function dispatchUnauthorized(): void {
+  window.dispatchEvent(new CustomEvent('liftoff:unauthorized'))
 }
 
 // Data model interfaces
@@ -81,7 +87,7 @@ export class ApiService {
 	private baseUrl: string;
 
 	constructor() {
-		this.baseUrl = 'http://localhost:8080/api';
+		this.baseUrl = '/api';
 	}
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
@@ -101,6 +107,7 @@ export class ApiService {
     if (!response.ok) {
       if (response.status === 401) {
         localStorage.removeItem(AUTH_KEY)
+        dispatchUnauthorized()
       }
       throw new Error(`HTTP error! status: ${response.status}`)
     }

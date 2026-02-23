@@ -80,6 +80,9 @@ func main() {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workouts"})
 				return
 			}
+			if workouts == nil {
+				workouts = []*models.Workout{}
+			}
 			c.JSON(http.StatusOK, workouts)
 		})
 

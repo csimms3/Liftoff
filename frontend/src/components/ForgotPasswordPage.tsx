@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import './AuthPages.css'
 
-const API_BASE = 'http://localhost:8080/api'
+const API_BASE = '/api'
 
 interface ForgotPasswordPageProps {
   onSwitchToLogin: () => void
