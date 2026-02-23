@@ -1,8 +1,8 @@
-# 🏋️ Liftoff - Workout Tracking Application
+# Liftoff - Workout Tracking Application
 
 A full-stack workout tracking application built with Go backend and React frontend, designed to help users create, track, and manage their fitness routines.
 
-## 🚀 Features
+## Features
 
 - **Workout Management**: Create, edit, and delete workout plans
 - **Exercise Tracking**: Add exercises with sets, reps, and weights
@@ -11,7 +11,7 @@ A full-stack workout tracking application built with Go backend and React fronte
 - **Progress Tracking**: Monitor your fitness journey over time
 - **Responsive Design**: Works seamlessly on desktop and mobile devices
 
-## 🏗️ Architecture
+## Architecture
 
 ### Backend (Go)
 - **Framework**: Gin web framework
@@ -25,7 +25,7 @@ A full-stack workout tracking application built with Go backend and React fronte
 - **Styling**: CSS with responsive design principles
 - **State Management**: React hooks (useState, useEffect)
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Liftoff/
@@ -47,7 +47,7 @@ Liftoff/
 └── README.md              # This file
 ```
 
-## 🛠️ Setup & Installation
+## Setup & Installation
 
 ### Prerequisites
 - Go 1.21+ 
@@ -77,7 +77,7 @@ The application automatically detects and connects to:
 1. PostgreSQL (if available)
 2. SQLite (fallback, creates `liftoff.db` file)
 
-## 🎯 API Endpoints
+## API Endpoints
 
 ### Workouts
 - `GET /api/workouts` - List all workouts
@@ -98,7 +98,7 @@ The application automatically detects and connects to:
 - `GET /api/sessions/active` - Get active session
 - `PUT /api/sessions/:id/end` - End workout session
 
-## 🎨 Exercise Templates
+## Exercise Templates
 
 The application includes 32 predefined exercise templates organized by muscle group:
 
@@ -110,7 +110,7 @@ The application includes 32 predefined exercise templates organized by muscle gr
 - **Core**: Plank, Crunches, Russian Twists
 - **Cardio**: Running, Cycling, Jump Rope
 
-## 🔧 Development
+## Development
 
 ### Code Style
 - **Go**: Follow Go formatting standards (`gofmt`)
@@ -139,7 +139,7 @@ cd frontend
 pnpm build
 ```
 
-## 🚀 Deployment
+## Deployment
 
 ### Backend
 The Go backend can be deployed as a single binary:
@@ -155,7 +155,7 @@ pnpm build
 # Serve dist/ directory with any static file server
 ```
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -163,11 +163,11 @@ pnpm build
 4. Add tests if applicable
 5. Submit a pull request
 
-## 📝 License
+## License
 
 This project is open source and available under the [MIT License](LICENSE).
 
-## 🆘 Support
+## Support
 
 If you encounter any issues or have questions:
 1. Check the existing issues
@@ -176,4 +176,4 @@ If you encounter any issues or have questions:
 
 ---
 
-Built with ❤️ for fitness enthusiasts everywhere.
+Built with for fitness enthusiasts everywhere.
