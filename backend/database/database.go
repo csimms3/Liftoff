@@ -76,6 +76,11 @@ func NewDatabase() (*Database, error) {
 		return newSQLiteDatabase()
 	}
 
+	// Run migrations (add user_id, migrate existing data)
+	if err := MigratePostgres(pool); err != nil {
+		log.Printf("Warning: migration failed (may need to run 002 and 003 manually): %v", err)
+	}
+
 	log.Println("Database connected successfully (PostgreSQL)")
 
 	return &Database{pool: pool, useSQLite: false}, nil
@@ -100,6 +105,11 @@ func newSQLiteDatabase() (*Database, error) {
 	// Create tables if they don't exist
 	if err := createSQLiteTables(db); err != nil {
 		return nil, fmt.Errorf("failed to create SQLite tables: %w", err)
+	}
+
+	// Run migrations (add user_id, migrate existing data)
+	if err := MigrateSQLite(db); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	log.Println("Database connected successfully (SQLite)")

@@ -64,9 +64,15 @@ func main() {
 		api.POST("/auth/register", authHandler.Register)
 		api.GET("/auth/me", auth.AuthMiddleware(), authHandler.Me)
 
+		// Protected routes - add auth middleware group
+	}
+	authAPI := api.Group("")
+	authAPI.Use(auth.AuthMiddleware())
+	{
+		userID := func(c *gin.Context) string { return auth.GetUserID(c) }
 		// Workout management endpoints
-		api.GET("/workouts", func(c *gin.Context) {
-			workouts, err := workoutRepo.GetWorkouts(c.Request.Context())
+		authAPI.GET("/workouts", func(c *gin.Context) {
+			workouts, err := workoutRepo.GetWorkouts(c.Request.Context(), userID(c))
 			if err != nil {
 				log.Printf("Error fetching workouts: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch workouts"})
@@ -75,7 +81,7 @@ func main() {
 			c.JSON(http.StatusOK, workouts)
 		})
 
-		api.POST("/workouts", func(c *gin.Context) {
+		authAPI.POST("/workouts", func(c *gin.Context) {
 			var input struct {
 				Name string `json:"name" binding:"required"`
 			}
@@ -83,8 +89,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Workout name is required"})
 				return
 			}
-
-			workout, err := workoutRepo.CreateWorkout(c.Request.Context(), input.Name)
+			workout, err := workoutRepo.CreateWorkout(c.Request.Context(), userID(c), input.Name)
 			if err != nil {
 				log.Printf("Error creating workout: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create workout"})
@@ -93,9 +98,8 @@ func main() {
 			c.JSON(http.StatusCreated, workout)
 		})
 
-		api.GET("/workouts/:id", func(c *gin.Context) {
-			id := c.Param("id")
-			workout, err := workoutRepo.GetWorkout(c.Request.Context(), id)
+		authAPI.GET("/workouts/:id", func(c *gin.Context) {
+			workout, err := workoutRepo.GetWorkout(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Workout not found"})
 				return
@@ -103,9 +107,8 @@ func main() {
 			c.JSON(http.StatusOK, workout)
 		})
 
-		api.DELETE("/workouts/:id", func(c *gin.Context) {
-			id := c.Param("id")
-			err := workoutRepo.DeleteWorkout(c.Request.Context(), id)
+		authAPI.DELETE("/workouts/:id", func(c *gin.Context) {
+			err := workoutRepo.DeleteWorkout(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
 				log.Printf("Error deleting workout: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete workout"})
@@ -133,8 +136,7 @@ func main() {
 			c.JSON(http.StatusOK, templates)
 		})
 
-		api.POST("/workout-templates/:id/create", func(c *gin.Context) {
-			templateID := c.Param("id")
+		authAPI.POST("/workout-templates/:id/create", func(c *gin.Context) {
 			var req struct {
 				Name string `json:"name"`
 			}
@@ -142,7 +144,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-			workout, err := workoutRepo.CreateWorkoutFromTemplate(c.Request.Context(), templateID, req.Name)
+			workout, err := workoutRepo.CreateWorkoutFromTemplate(c.Request.Context(), userID(c), c.Param("id"), req.Name)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -151,7 +153,7 @@ func main() {
 		})
 
 		// Exercise routes
-		api.POST("/exercises", func(c *gin.Context) {
+		authAPI.POST("/exercises", func(c *gin.Context) {
 			var input struct {
 				Name      string  `json:"name" binding:"required"`
 				Sets      int     `json:"sets" binding:"required"`
@@ -172,7 +174,7 @@ func main() {
 				WorkoutID: input.WorkoutID,
 			}
 
-			err := workoutRepo.CreateExercise(c.Request.Context(), exercise)
+			err := workoutRepo.CreateExercise(c.Request.Context(), userID(c), exercise)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -180,9 +182,8 @@ func main() {
 			c.JSON(http.StatusCreated, exercise)
 		})
 
-		api.DELETE("/exercises/:id", func(c *gin.Context) {
-			id := c.Param("id")
-			err := workoutRepo.DeleteExercise(c.Request.Context(), id)
+		authAPI.DELETE("/exercises/:id", func(c *gin.Context) {
+			err := workoutRepo.DeleteExercise(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -190,9 +191,13 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Exercise deleted"})
 		})
 
-		api.GET("/workouts/:id/exercises", func(c *gin.Context) {
-			id := c.Param("id")
-			exercises, err := workoutRepo.GetExercisesByWorkout(c.Request.Context(), id)
+		authAPI.GET("/workouts/:id/exercises", func(c *gin.Context) {
+			_, err := workoutRepo.GetWorkout(c.Request.Context(), userID(c), c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Workout not found"})
+				return
+			}
+			exercises, err := workoutRepo.GetExercisesByWorkout(c.Request.Context(), c.Param("id"))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -201,7 +206,7 @@ func main() {
 		})
 
 		// Session routes
-		api.POST("/sessions", func(c *gin.Context) {
+		authAPI.POST("/sessions", func(c *gin.Context) {
 			var input struct {
 				WorkoutID string `json:"workout_id" binding:"required"`
 			}
@@ -210,7 +215,7 @@ func main() {
 				return
 			}
 
-			session, err := sessionRepo.CreateSessionWithExercises(c.Request.Context(), input.WorkoutID)
+			session, err := sessionRepo.CreateSessionWithExercises(c.Request.Context(), userID(c), input.WorkoutID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -218,8 +223,8 @@ func main() {
 			c.JSON(http.StatusCreated, session)
 		})
 
-		api.GET("/sessions/active", func(c *gin.Context) {
-			session, err := sessionRepo.GetActiveSessionWithExercises(c.Request.Context())
+		authAPI.GET("/sessions/active", func(c *gin.Context) {
+			session, err := sessionRepo.GetActiveSessionWithExercises(c.Request.Context(), userID(c))
 			if err != nil {
 				c.JSON(http.StatusNotFound, gin.H{"error": "No active session"})
 				return
@@ -227,9 +232,8 @@ func main() {
 			c.JSON(http.StatusOK, session)
 		})
 
-		api.PUT("/sessions/:id/end", func(c *gin.Context) {
-			id := c.Param("id")
-			session, err := sessionRepo.EndSession(c.Request.Context(), id)
+		authAPI.PUT("/sessions/:id/end", func(c *gin.Context) {
+			session, err := sessionRepo.EndSession(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -238,8 +242,7 @@ func main() {
 		})
 
 		// Session exercise routes
-		api.POST("/sessions/:id/exercises", func(c *gin.Context) {
-			sessionID := c.Param("id")
+		authAPI.POST("/sessions/:id/exercises", func(c *gin.Context) {
 			var input struct {
 				ExerciseID string `json:"exerciseId" binding:"required"`
 			}
@@ -247,8 +250,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-
-			sessionExercise, err := sessionRepo.CreateSessionExercise(c.Request.Context(), sessionID, input.ExerciseID)
+			sessionExercise, err := sessionRepo.CreateSessionExercise(c.Request.Context(), userID(c), c.Param("id"), input.ExerciseID)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -257,7 +259,7 @@ func main() {
 		})
 
 		// Exercise set routes
-		api.POST("/exercise-sets", func(c *gin.Context) {
+		authAPI.POST("/exercise-sets", func(c *gin.Context) {
 			var input struct {
 				SessionExerciseID string  `json:"sessionExerciseId" binding:"required"`
 				Reps              int     `json:"reps"`
@@ -274,7 +276,7 @@ func main() {
 				Weight:            input.Weight,
 			}
 
-			err := sessionRepo.CreateExerciseSet(c.Request.Context(), set)
+			err := sessionRepo.CreateExerciseSet(c.Request.Context(), userID(c), set)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -282,8 +284,7 @@ func main() {
 			c.JSON(http.StatusCreated, set)
 		})
 
-		api.PUT("/exercise-sets/:id/complete", func(c *gin.Context) {
-			id := c.Param("id")
+		authAPI.PUT("/exercise-sets/:id/complete", func(c *gin.Context) {
 			var input struct {
 				SetIndex int `json:"setIndex"`
 			}
@@ -291,8 +292,7 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-
-			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), id, input.SetIndex)
+			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), userID(c), c.Param("id"), input.SetIndex)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -300,8 +300,7 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
 		})
 
-		api.PUT("/exercise-sets/:id", func(c *gin.Context) {
-			id := c.Param("id")
+		authAPI.PUT("/exercise-sets/:id", func(c *gin.Context) {
 			var input struct {
 				Reps   int     `json:"reps" binding:"required,min=1"`
 				Weight float64 `json:"weight" binding:"required,min=0.01"`
@@ -311,16 +310,14 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 				return
 			}
-
 			set := &models.ExerciseSet{
-				ID:        id,
+				ID:        c.Param("id"),
 				Reps:      input.Reps,
 				Weight:    input.Weight,
 				Notes:     input.Notes,
 				Completed: true,
 			}
-
-			err := sessionRepo.UpdateExerciseSet(c.Request.Context(), set)
+			err := sessionRepo.UpdateExerciseSet(c.Request.Context(), userID(c), set)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -329,8 +326,8 @@ func main() {
 		})
 
 		// Workout history routes
-		api.GET("/sessions/completed", func(c *gin.Context) {
-			sessions, err := sessionRepo.GetCompletedSessions(c.Request.Context())
+		authAPI.GET("/sessions/completed", func(c *gin.Context) {
+			sessions, err := sessionRepo.GetCompletedSessions(c.Request.Context(), userID(c))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -339,8 +336,8 @@ func main() {
 		})
 
 		// Progress routes
-		api.GET("/progress", func(c *gin.Context) {
-			progress, err := sessionRepo.GetProgressData(c.Request.Context())
+		authAPI.GET("/progress", func(c *gin.Context) {
+			progress, err := sessionRepo.GetProgressData(c.Request.Context(), userID(c))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -349,7 +346,7 @@ func main() {
 		})
 
 		// Dino game routes
-		api.POST("/dino-game/score", func(c *gin.Context) {
+		authAPI.POST("/dino-game/score", func(c *gin.Context) {
 			var input struct {
 				Score int `json:"score" binding:"required"`
 			}
@@ -358,7 +355,7 @@ func main() {
 				return
 			}
 
-			score, err := workoutRepo.CreateDinoGameScore(c.Request.Context(), input.Score)
+			score, err := workoutRepo.CreateDinoGameScore(c.Request.Context(), userID(c), input.Score)
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return
@@ -366,8 +363,8 @@ func main() {
 			c.JSON(http.StatusCreated, score)
 		})
 
-		api.GET("/dino-game/high-score", func(c *gin.Context) {
-			highScore, err := workoutRepo.GetDinoGameHighScore(c.Request.Context())
+		authAPI.GET("/dino-game/high-score", func(c *gin.Context) {
+			highScore, err := workoutRepo.GetDinoGameHighScore(c.Request.Context(), userID(c))
 			if err != nil {
 				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 				return

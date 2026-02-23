@@ -66,14 +66,14 @@ func NewWorkoutRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *Wor
  * - *models.Workout: Created workout with generated ID and timestamps
  * - error: Creation error if any
  */
-func (r *WorkoutRepository) CreateWorkout(ctx context.Context, name string) (*models.Workout, error) {
+func (r *WorkoutRepository) CreateWorkout(ctx context.Context, userID, name string) (*models.Workout, error) {
 	id := uuid.New().String()
 	now := time.Now()
 
 	if r.useSQLite {
-		return r.createWorkoutSQLite(ctx, id, name, now)
+		return r.createWorkoutSQLite(ctx, id, userID, name, now)
 	}
-	return r.createWorkoutPostgres(ctx, id, name, now)
+	return r.createWorkoutPostgres(ctx, id, userID, name, now)
 }
 
 /**
@@ -92,16 +92,16 @@ func (r *WorkoutRepository) CreateWorkout(ctx context.Context, name string) (*mo
  * - *models.Workout: Created workout with all fields
  * - error: Database error if any
  */
-func (r *WorkoutRepository) createWorkoutPostgres(ctx context.Context, id, name string, now time.Time) (*models.Workout, error) {
+func (r *WorkoutRepository) createWorkoutPostgres(ctx context.Context, id, userID, name string, now time.Time) (*models.Workout, error) {
 	query := `
-		INSERT INTO workouts (id, name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, name, created_at, updated_at
+		INSERT INTO workouts (id, user_id, name, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, user_id, name, created_at, updated_at
 	`
 
 	var workout models.Workout
-	err := r.db.QueryRow(ctx, query, id, name, now, now).Scan(
-		&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
+	err := r.db.QueryRow(ctx, query, id, userID, name, now, now).Scan(
+		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workout: %w", err)
@@ -126,19 +126,20 @@ func (r *WorkoutRepository) createWorkoutPostgres(ctx context.Context, id, name 
  * - *models.Workout: Created workout with all fields
  * - error: Database error if any
  */
-func (r *WorkoutRepository) createWorkoutSQLite(ctx context.Context, id, name string, now time.Time) (*models.Workout, error) {
+func (r *WorkoutRepository) createWorkoutSQLite(ctx context.Context, id, userID, name string, now time.Time) (*models.Workout, error) {
 	query := `
-		INSERT INTO workouts (id, name, created_at, updated_at)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO workouts (id, user_id, name, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
 	`
 
-	_, err := r.sqlite.ExecContext(ctx, query, id, name, now, now)
+	_, err := r.sqlite.ExecContext(ctx, query, id, userID, name, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create workout: %w", err)
 	}
 
 	return &models.Workout{
 		ID:        id,
+		UserID:    userID,
 		Name:      name,
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -158,11 +159,11 @@ func (r *WorkoutRepository) createWorkoutSQLite(ctx context.Context, id, name st
  * - []*models.Workout: List of all workouts
  * - error: Database error if any
  */
-func (r *WorkoutRepository) GetWorkouts(ctx context.Context) ([]*models.Workout, error) {
+func (r *WorkoutRepository) GetWorkouts(ctx context.Context, userID string) ([]*models.Workout, error) {
 	if r.useSQLite {
-		return r.getWorkoutsSQLite(ctx)
+		return r.getWorkoutsSQLite(ctx, userID)
 	}
-	return r.getWorkoutsPostgres(ctx)
+	return r.getWorkoutsPostgres(ctx, userID)
 }
 
 /**
@@ -178,14 +179,15 @@ func (r *WorkoutRepository) GetWorkouts(ctx context.Context) ([]*models.Workout,
  * - []*models.Workout: List of workouts from PostgreSQL
  * - error: Database error if any
  */
-func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context) ([]*models.Workout, error) {
+func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context, userID string) ([]*models.Workout, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, user_id, name, created_at, updated_at
 		FROM workouts
+		WHERE user_id = $1
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workouts: %w", err)
 	}
@@ -194,7 +196,7 @@ func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context) ([]*models.
 	var workouts []*models.Workout
 	for rows.Next() {
 		var workout models.Workout
-		err := rows.Scan(&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
+		err := rows.Scan(&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan workout: %w", err)
 		}
@@ -217,14 +219,15 @@ func (r *WorkoutRepository) getWorkoutsPostgres(ctx context.Context) ([]*models.
  * - []*models.Workout: List of workouts from SQLite
  * - error: Database error if any
  */
-func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Workout, error) {
+func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context, userID string) ([]*models.Workout, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, user_id, name, created_at, updated_at
 		FROM workouts
+		WHERE user_id = ?
 		ORDER BY created_at DESC
 	`
 
-	rows, err := r.sqlite.QueryContext(ctx, query)
+	rows, err := r.sqlite.QueryContext(ctx, query, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workouts: %w", err)
 	}
@@ -233,7 +236,7 @@ func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Wo
 	var workouts []*models.Workout
 	for rows.Next() {
 		var workout models.Workout
-		err := rows.Scan(&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
+		err := rows.Scan(&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan workout: %w", err)
 		}
@@ -256,14 +259,14 @@ func (r *WorkoutRepository) getWorkoutsSQLite(ctx context.Context) ([]*models.Wo
  * - *models.Workout: Retrieved workout
  * - error: Database error if any
  */
-func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.Workout, error) {
+func (r *WorkoutRepository) GetWorkout(ctx context.Context, userID, id string) (*models.Workout, error) {
 	var workout *models.Workout
 	var err error
 
 	if r.useSQLite {
-		workout, err = r.getWorkoutSQLite(ctx, id)
+		workout, err = r.getWorkoutSQLite(ctx, userID, id)
 	} else {
-		workout, err = r.getWorkoutPostgres(ctx, id)
+		workout, err = r.getWorkoutPostgres(ctx, userID, id)
 	}
 
 	if err != nil {
@@ -299,16 +302,16 @@ func (r *WorkoutRepository) GetWorkout(ctx context.Context, id string) (*models.
  * - *models.Workout: Retrieved workout
  * - error: Database error if any
  */
-func (r *WorkoutRepository) getWorkoutPostgres(ctx context.Context, id string) (*models.Workout, error) {
+func (r *WorkoutRepository) getWorkoutPostgres(ctx context.Context, userID, id string) (*models.Workout, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, user_id, name, created_at, updated_at
 		FROM workouts
-		WHERE id = $1
+		WHERE id = $1 AND user_id = $2
 	`
 
 	var workout models.Workout
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
+	err := r.db.QueryRow(ctx, query, id, userID).Scan(
+		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workout: %w", err)
@@ -330,16 +333,16 @@ func (r *WorkoutRepository) getWorkoutPostgres(ctx context.Context, id string) (
  * - *models.Workout: Retrieved workout
  * - error: Database error if any
  */
-func (r *WorkoutRepository) getWorkoutSQLite(ctx context.Context, id string) (*models.Workout, error) {
+func (r *WorkoutRepository) getWorkoutSQLite(ctx context.Context, userID, id string) (*models.Workout, error) {
 	query := `
-		SELECT id, name, created_at, updated_at
+		SELECT id, user_id, name, created_at, updated_at
 		FROM workouts
-		WHERE id = ?
+		WHERE id = ? AND user_id = ?
 	`
 
 	var workout models.Workout
-	err := r.sqlite.QueryRowContext(ctx, query, id).Scan(
-		&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
+	err := r.sqlite.QueryRowContext(ctx, query, id, userID).Scan(
+		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workout: %w", err)
@@ -393,11 +396,11 @@ func (r *WorkoutRepository) UpdateWorkout(ctx context.Context, id, name string) 
  * Returns:
  * - error: Database error if any
  */
-func (r *WorkoutRepository) DeleteWorkout(ctx context.Context, id string) error {
+func (r *WorkoutRepository) DeleteWorkout(ctx context.Context, userID, id string) error {
 	if r.useSQLite {
-		return r.deleteWorkoutSQLite(ctx, id)
+		return r.deleteWorkoutSQLite(ctx, userID, id)
 	}
-	return r.deleteWorkoutPostgres(ctx, id)
+	return r.deleteWorkoutPostgres(ctx, userID, id)
 }
 
 /**
@@ -412,9 +415,9 @@ func (r *WorkoutRepository) DeleteWorkout(ctx context.Context, id string) error 
  * Returns:
  * - error: Database error if any
  */
-func (r *WorkoutRepository) deleteWorkoutPostgres(ctx context.Context, id string) error {
-	query := `DELETE FROM workouts WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
+func (r *WorkoutRepository) deleteWorkoutPostgres(ctx context.Context, userID, id string) error {
+	query := `DELETE FROM workouts WHERE id = $1 AND user_id = $2`
+	_, err := r.db.Exec(ctx, query, id, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete workout: %w", err)
 	}
@@ -433,9 +436,9 @@ func (r *WorkoutRepository) deleteWorkoutPostgres(ctx context.Context, id string
  * Returns:
  * - error: Database error if any
  */
-func (r *WorkoutRepository) deleteWorkoutSQLite(ctx context.Context, id string) error {
-	query := `DELETE FROM workouts WHERE id = ?`
-	_, err := r.sqlite.ExecContext(ctx, query, id)
+func (r *WorkoutRepository) deleteWorkoutSQLite(ctx context.Context, userID, id string) error {
+	query := `DELETE FROM workouts WHERE id = ? AND user_id = ?`
+	_, err := r.sqlite.ExecContext(ctx, query, id, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete workout: %w", err)
 	}
@@ -461,7 +464,13 @@ func (r *WorkoutRepository) deleteWorkoutSQLite(ctx context.Context, id string) 
  * Returns:
  * - error: Creation error if any
  */
-func (r *WorkoutRepository) CreateExercise(ctx context.Context, exercise *models.Exercise) error {
+func (r *WorkoutRepository) CreateExercise(ctx context.Context, userID string, exercise *models.Exercise) error {
+	// Verify workout belongs to user
+	_, err := r.GetWorkout(ctx, userID, exercise.WorkoutID)
+	if err != nil {
+		return fmt.Errorf("workout not found or access denied: %w", err)
+	}
+
 	id := uuid.New().String()
 	now := time.Now()
 
@@ -724,11 +733,11 @@ func (r *WorkoutRepository) UpdateExercise(ctx context.Context, exercise *models
  * Returns:
  * - error: Database error if any
  */
-func (r *WorkoutRepository) DeleteExercise(ctx context.Context, id string) error {
+func (r *WorkoutRepository) DeleteExercise(ctx context.Context, userID, id string) error {
 	if r.useSQLite {
-		return r.deleteExerciseSQLite(ctx, id)
+		return r.deleteExerciseSQLite(ctx, userID, id)
 	}
-	return r.deleteExercisePostgres(ctx, id)
+	return r.deleteExercisePostgres(ctx, userID, id)
 }
 
 /**
@@ -743,9 +752,9 @@ func (r *WorkoutRepository) DeleteExercise(ctx context.Context, id string) error
  * Returns:
  * - error: Database error if any
  */
-func (r *WorkoutRepository) deleteExercisePostgres(ctx context.Context, id string) error {
-	query := `DELETE FROM exercises WHERE id = $1`
-	_, err := r.db.Exec(ctx, query, id)
+func (r *WorkoutRepository) deleteExercisePostgres(ctx context.Context, userID, id string) error {
+	query := `DELETE FROM exercises WHERE id = $1 AND workout_id IN (SELECT id FROM workouts WHERE user_id = $2)`
+	_, err := r.db.Exec(ctx, query, id, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete exercise: %w", err)
 	}
@@ -764,9 +773,9 @@ func (r *WorkoutRepository) deleteExercisePostgres(ctx context.Context, id strin
  * Returns:
  * - error: Database error if any
  */
-func (r *WorkoutRepository) deleteExerciseSQLite(ctx context.Context, id string) error {
-	query := `DELETE FROM exercises WHERE id = ?`
-	_, err := r.sqlite.ExecContext(ctx, query, id)
+func (r *WorkoutRepository) deleteExerciseSQLite(ctx context.Context, userID, id string) error {
+	query := `DELETE FROM exercises WHERE id = ? AND workout_id IN (SELECT id FROM workouts WHERE user_id = ?)`
+	_, err := r.sqlite.ExecContext(ctx, query, id, userID)
 	if err != nil {
 		return fmt.Errorf("failed to delete exercise: %w", err)
 	}
@@ -1006,7 +1015,7 @@ func (r *WorkoutRepository) getPredefinedTemplates() []*models.WorkoutTemplate {
  * - *models.Workout: Created workout with exercises from template
  * - error: Creation error if any
  */
-func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templateID string, name string) (*models.Workout, error) {
+func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, userID, templateID string, name string) (*models.Workout, error) {
 	templates := r.getPredefinedTemplates()
 	var template *models.WorkoutTemplate
 
@@ -1022,7 +1031,7 @@ func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templ
 	}
 
 	// Create the workout
-	workout, err := r.CreateWorkout(ctx, name)
+	workout, err := r.CreateWorkout(ctx, userID, name)
 	if err != nil {
 		return nil, err
 	}
@@ -1030,7 +1039,7 @@ func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templ
 	// Add exercises from template
 	for _, exercise := range template.Exercises {
 		exercise.WorkoutID = workout.ID
-		err = r.CreateExercise(ctx, &exercise)
+		err = r.CreateExercise(ctx, userID, &exercise)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create exercise %s: %w", exercise.Name, err)
 		}
@@ -1042,25 +1051,25 @@ func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, templ
 /**
  * CreateDinoGameScore creates a new dino game score in the database
  */
-func (r *WorkoutRepository) CreateDinoGameScore(ctx context.Context, score int) (*models.DinoGameScore, error) {
+func (r *WorkoutRepository) CreateDinoGameScore(ctx context.Context, userID string, score int) (*models.DinoGameScore, error) {
 	id := uuid.New().String()
 	now := time.Now()
 
 	if r.useSQLite {
-		return r.createDinoGameScoreSQLite(ctx, id, score, now)
+		return r.createDinoGameScoreSQLite(ctx, id, userID, score, now)
 	}
-	return r.createDinoGameScorePostgres(ctx, id, score, now)
+	return r.createDinoGameScorePostgres(ctx, id, userID, score, now)
 }
 
-func (r *WorkoutRepository) createDinoGameScorePostgres(ctx context.Context, id string, score int, now time.Time) (*models.DinoGameScore, error) {
+func (r *WorkoutRepository) createDinoGameScorePostgres(ctx context.Context, id, userID string, score int, now time.Time) (*models.DinoGameScore, error) {
 	query := `
-		INSERT INTO dino_game_scores (id, score, created_at)
-		VALUES ($1, $2, $3)
+		INSERT INTO dino_game_scores (id, user_id, score, created_at)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, score, created_at
 	`
 
 	var dinoScore models.DinoGameScore
-	err := r.db.QueryRow(ctx, query, id, score, now).Scan(
+	err := r.db.QueryRow(ctx, query, id, userID, score, now).Scan(
 		&dinoScore.ID, &dinoScore.Score, &dinoScore.CreatedAt,
 	)
 	if err != nil {
@@ -1070,13 +1079,13 @@ func (r *WorkoutRepository) createDinoGameScorePostgres(ctx context.Context, id 
 	return &dinoScore, nil
 }
 
-func (r *WorkoutRepository) createDinoGameScoreSQLite(ctx context.Context, id string, score int, now time.Time) (*models.DinoGameScore, error) {
+func (r *WorkoutRepository) createDinoGameScoreSQLite(ctx context.Context, id, userID string, score int, now time.Time) (*models.DinoGameScore, error) {
 	query := `
-		INSERT INTO dino_game_scores (id, score, created_at)
-		VALUES (?, ?, ?)
+		INSERT INTO dino_game_scores (id, user_id, score, created_at)
+		VALUES (?, ?, ?, ?)
 	`
 
-	_, err := r.sqlite.ExecContext(ctx, query, id, score, now)
+	_, err := r.sqlite.ExecContext(ctx, query, id, userID, score, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create dino game score: %w", err)
 	}
@@ -1091,21 +1100,22 @@ func (r *WorkoutRepository) createDinoGameScoreSQLite(ctx context.Context, id st
 /**
  * GetDinoGameHighScore retrieves the highest score from the dino game
  */
-func (r *WorkoutRepository) GetDinoGameHighScore(ctx context.Context) (int, error) {
+func (r *WorkoutRepository) GetDinoGameHighScore(ctx context.Context, userID string) (int, error) {
 	if r.useSQLite {
-		return r.getDinoGameHighScoreSQLite(ctx)
+		return r.getDinoGameHighScoreSQLite(ctx, userID)
 	}
-	return r.getDinoGameHighScorePostgres(ctx)
+	return r.getDinoGameHighScorePostgres(ctx, userID)
 }
 
-func (r *WorkoutRepository) getDinoGameHighScorePostgres(ctx context.Context) (int, error) {
+func (r *WorkoutRepository) getDinoGameHighScorePostgres(ctx context.Context, userID string) (int, error) {
 	query := `
 		SELECT COALESCE(MAX(score), 0)
 		FROM dino_game_scores
+		WHERE user_id = $1
 	`
 
 	var highScore int
-	err := r.db.QueryRow(ctx, query).Scan(&highScore)
+	err := r.db.QueryRow(ctx, query, userID).Scan(&highScore)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get high score: %w", err)
 	}
@@ -1113,14 +1123,15 @@ func (r *WorkoutRepository) getDinoGameHighScorePostgres(ctx context.Context) (i
 	return highScore, nil
 }
 
-func (r *WorkoutRepository) getDinoGameHighScoreSQLite(ctx context.Context) (int, error) {
+func (r *WorkoutRepository) getDinoGameHighScoreSQLite(ctx context.Context, userID string) (int, error) {
 	query := `
 		SELECT COALESCE(MAX(score), 0)
 		FROM dino_game_scores
+		WHERE user_id = ?
 	`
 
 	var highScore int
-	err := r.sqlite.QueryRowContext(ctx, query).Scan(&highScore)
+	err := r.sqlite.QueryRowContext(ctx, query, userID).Scan(&highScore)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get high score: %w", err)
 	}

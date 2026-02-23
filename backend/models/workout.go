@@ -17,6 +17,7 @@ const (
 // Workout represents a workout plan with exercises
 type Workout struct {
 	ID        string     `json:"id" db:"id"`
+	UserID    string     `json:"-" db:"user_id"`
 	Name      string     `json:"name" db:"name"`
 	Type      string     `json:"type" db:"type"`
 	Exercises []Exercise `json:"exercises" db:"-"`
@@ -60,6 +61,7 @@ type ExerciseTemplate struct {
 // WorkoutSession represents an active or completed workout session
 type WorkoutSession struct {
 	ID        string             `json:"id" db:"id"`
+	UserID    string             `json:"-" db:"user_id"`
 	WorkoutID string             `json:"workout_id" db:"workout_id"`
 	Workout   *Workout           `json:"workout" db:"-"`
 	StartedAt time.Time          `json:"started_at" db:"started_at"`
