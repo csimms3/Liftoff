@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"os"
 
+	"liftoff/backend/auth"
 	"liftoff/backend/database"
+	"liftoff/backend/handlers"
 	"liftoff/backend/models"
 	"liftoff/backend/repository"
 
@@ -33,6 +35,8 @@ func main() {
 	// Initialize repositories for data access
 	workoutRepo := repository.NewWorkoutRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	sessionRepo := repository.NewSessionRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
+	userRepo := repository.NewUserRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
+	authHandler := handlers.NewAuthHandler(userRepo)
 
 	// Setup Gin router with default middleware (Logger and Recovery)
 	r := gin.Default()
@@ -55,6 +59,11 @@ func main() {
 	// API routes group - all endpoints under /api
 	api := r.Group("/api")
 	{
+		// Auth routes (no middleware required for login/register)
+		api.POST("/auth/login", authHandler.Login)
+		api.POST("/auth/register", authHandler.Register)
+		api.GET("/auth/me", auth.AuthMiddleware(), authHandler.Me)
+
 		// Workout management endpoints
 		api.GET("/workouts", func(c *gin.Context) {
 			workouts, err := workoutRepo.GetWorkouts(c.Request.Context())
