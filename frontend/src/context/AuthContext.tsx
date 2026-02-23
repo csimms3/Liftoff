@@ -1,0 +1,150 @@
+import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+
+export interface User {
+  id: string
+  email: string
+}
+
+export interface AuthState {
+  user: User | null
+  token: string | null
+  expiresAt: string | null
+  isLoading: boolean
+  isAuthenticated: boolean
+}
+
+interface AuthContextType extends AuthState {
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
+  register: (email: string, password: string) => Promise<void>
+  logout: () => void
+}
+
+const AUTH_KEY = 'liftoff-auth'
+const API_BASE = 'http://localhost:8080/api'
+
+interface StoredAuth {
+  token: string
+  user: User
+  expiresAt: string
+}
+
+function getStoredAuth(): StoredAuth | null {
+  try {
+    const stored = localStorage.getItem(AUTH_KEY)
+    if (!stored) return null
+    const data = JSON.parse(stored) as StoredAuth
+    if (data.expiresAt && new Date(data.expiresAt) < new Date()) {
+      localStorage.removeItem(AUTH_KEY)
+      return null
+    }
+    return data
+  } catch {
+    return null
+  }
+}
+
+function storeAuth(data: StoredAuth | null) {
+  if (data) {
+    localStorage.setItem(AUTH_KEY, JSON.stringify(data))
+  } else {
+    localStorage.removeItem(AUTH_KEY)
+  }
+}
+
+const AuthContext = createContext<AuthContextType | null>(null)
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const [expiresAt, setExpiresAt] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const applyAuth = useCallback((data: StoredAuth | null) => {
+    if (data) {
+      setToken(data.token)
+      setUser(data.user)
+      setExpiresAt(data.expiresAt)
+    } else {
+      setToken(null)
+      setUser(null)
+      setExpiresAt(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    const stored = getStoredAuth()
+    if (stored) {
+      applyAuth(stored)
+    }
+    setIsLoading(false)
+  }, [applyAuth])
+
+  const login = useCallback(async (email: string, password: string, rememberMe = false) => {
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password, rememberMe }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Login failed')
+    }
+    const data = await res.json()
+    const authData: StoredAuth = {
+      token: data.token,
+      user: data.user,
+      expiresAt: data.expiresAt,
+    }
+    storeAuth(authData)
+    applyAuth(authData)
+  }, [applyAuth])
+
+  const register = useCallback(async (email: string, password: string) => {
+    const res = await fetch(`${API_BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.error || 'Registration failed')
+    }
+    const data = await res.json()
+    const authData: StoredAuth = {
+      token: data.token,
+      user: data.user,
+      expiresAt: data.expiresAt,
+    }
+    storeAuth(authData)
+    applyAuth(authData)
+  }, [applyAuth])
+
+  const logout = useCallback(() => {
+    storeAuth(null)
+    applyAuth(null)
+  }, [applyAuth])
+
+  const value: AuthContextType = {
+    user,
+    token,
+    expiresAt,
+    isLoading,
+    isAuthenticated: !!token,
+    login,
+    register,
+    logout,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+  return ctx
+}
+
+export function getAuthToken(): string | null {
+  const stored = getStoredAuth()
+  return stored?.token ?? null
+}

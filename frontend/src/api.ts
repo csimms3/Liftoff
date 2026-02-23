@@ -1,4 +1,16 @@
 const API_BASE = 'http://localhost:8080/api'
+const AUTH_KEY = 'liftoff-auth'
+
+function getAuthToken(): string | null {
+  try {
+    const stored = localStorage.getItem(AUTH_KEY)
+    if (!stored) return null
+    const data = JSON.parse(stored)
+    return data?.token ?? null
+  } catch {
+    return null
+  }
+}
 
 // Data model interfaces
 export interface Workout {
@@ -73,15 +85,23 @@ export class ApiService {
 	}
 
   private async request<T>(endpoint: string, options?: RequestInit): Promise<T> {
+    const token = getAuthToken()
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options?.headers as Record<string, string>),
+    }
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
     const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...options?.headers,
-      },
       ...options,
+      headers,
     })
 
     if (!response.ok) {
+      if (response.status === 401) {
+        localStorage.removeItem(AUTH_KEY)
+      }
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
@@ -187,7 +207,7 @@ export class ApiService {
     })
   }
 
-	// Workout template methods
+	// Workout template methods (no auth required)
 	async getWorkoutTemplates(): Promise<WorkoutTemplate[]> {
 		const response = await fetch(`${this.baseUrl}/workout-templates`);
 		if (!response.ok) {
@@ -197,11 +217,12 @@ export class ApiService {
 	}
 
 	async createWorkoutFromTemplate(templateId: string, name: string): Promise<Workout> {
+		const token = getAuthToken()
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+		if (token) headers['Authorization'] = `Bearer ${token}`
 		const response = await fetch(`${this.baseUrl}/workout-templates/${templateId}/create`, {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
+			headers,
 			body: JSON.stringify({ name }),
 		});
 		if (!response.ok) {
@@ -215,9 +236,12 @@ export class ApiService {
 	}
 
 	async saveDinoGameScore(score: number): Promise<void> {
+		const token = getAuthToken()
+		const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+		if (token) headers['Authorization'] = `Bearer ${token}`
 		const response = await fetch(`${this.baseUrl}/dino-game/score`, {
 			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
+			headers,
 			body: JSON.stringify({ score })
 		});
 		if (!response.ok) {
@@ -226,7 +250,10 @@ export class ApiService {
 	}
 
 	async getDinoGameHighScore(): Promise<number> {
-		const response = await fetch(`${this.baseUrl}/dino-game/high-score`);
+		const token = getAuthToken()
+		const headers: Record<string, string> = {}
+		if (token) headers['Authorization'] = `Bearer ${token}`
+		const response = await fetch(`${this.baseUrl}/dino-game/high-score`, { headers });
 		if (!response.ok) {
 			throw new Error('Failed to fetch high score');
 		}

@@ -3,6 +3,7 @@ import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetLoggingForm } from './components/SetLoggingForm'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
+import { useAuth } from './context/AuthContext'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet } from './api'
 import './App.css'
 
@@ -30,6 +31,7 @@ import './App.css'
  * - Error handling and loading states
  */
 export default function App() {
+  const { user, logout } = useAuth()
   // API service instance for backend communication
   const apiService = useMemo(() => new ApiService(), [])
   
@@ -601,6 +603,15 @@ export default function App() {
                 <label>Auto-save</label>
                 <input type="checkbox" defaultChecked />
               </div>
+              {user && (
+                <div className="setting-item setting-account">
+                  <label>Account</label>
+                  <p className="account-email">{user.email}</p>
+                  <button onClick={logout} className="btn-logout">
+                    Sign out
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
