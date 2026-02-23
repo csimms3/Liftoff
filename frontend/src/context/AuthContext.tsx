@@ -1,4 +1,17 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+
+const SESSION_TIMEOUT_KEY = 'liftoff-session-timeout-minutes'
+const DEFAULT_SESSION_TIMEOUT = 15
+
+export function getSessionTimeoutMinutes(): number {
+  const stored = localStorage.getItem(SESSION_TIMEOUT_KEY)
+  const parsed = parseInt(stored || '', 10)
+  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_SESSION_TIMEOUT
+}
+
+export function setSessionTimeoutMinutes(minutes: number): void {
+  localStorage.setItem(SESSION_TIMEOUT_KEY, String(Math.max(1, minutes)))
+}
 
 export interface User {
   id: string
@@ -17,6 +30,8 @@ interface AuthContextType extends AuthState {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   register: (email: string, password: string) => Promise<void>
   logout: () => void
+  sessionTimeoutMinutes: number
+  setSessionTimeoutMinutes: (minutes: number) => void
 }
 
 const AUTH_KEY = 'liftoff-auth'
@@ -58,6 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null)
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [sessionTimeoutMinutes, setSessionTimeoutState] = useState(getSessionTimeoutMinutes)
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const applyAuth = useCallback((data: StoredAuth | null) => {
     if (data) {
@@ -120,9 +137,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applyAuth])
 
   const logout = useCallback(() => {
+    if (idleTimerRef.current) {
+      clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = null
+    }
     storeAuth(null)
     applyAuth(null)
   }, [applyAuth])
+
+  // Idle timeout: log out after N minutes of no activity (only when not "remember me" - short token)
+  useEffect(() => {
+    if (!token || !user) return
+    const stored = getStoredAuth()
+    if (!stored) return
+    const expiry = new Date(stored.expiresAt)
+    const isLongLived = expiry.getTime() - Date.now() > 24 * 60 * 60 * 1000 // > 1 day = remember me
+    if (isLongLived) return // Don't apply idle timeout for remember-me sessions
+
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      idleTimerRef.current = setTimeout(() => {
+        storeAuth(null)
+        applyAuth(null)
+        idleTimerRef.current = null
+      }, sessionTimeoutMinutes * 60 * 1000)
+    }
+
+    resetIdleTimer()
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart']
+    events.forEach((e) => window.addEventListener(e, resetIdleTimer))
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
+      events.forEach((e) => window.removeEventListener(e, resetIdleTimer))
+    }
+  }, [token, user, sessionTimeoutMinutes, applyAuth])
+
+  const updateSessionTimeout = useCallback((minutes: number) => {
+    const value = Math.max(1, Math.min(120, minutes))
+    setSessionTimeoutState(value)
+    setSessionTimeoutMinutes(value)
+  }, [])
 
   const value: AuthContextType = {
     user,
@@ -133,6 +187,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     login,
     register,
     logout,
+    sessionTimeoutMinutes,
+    setSessionTimeoutMinutes: updateSessionTimeout,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

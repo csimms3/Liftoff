@@ -50,7 +50,9 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText('Workout name...')).toBeInTheDocument()
     })
-    expect(screen.getByText('Create')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument()
+    })
   })
 
   test('shows loading state initially', async () => {

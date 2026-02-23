@@ -31,7 +31,7 @@ import './App.css'
  * - Error handling and loading states
  */
 export default function App() {
-  const { user, logout } = useAuth()
+  const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes } = useAuth()
   // API service instance for backend communication
   const apiService = useMemo(() => new ApiService(), [])
   
@@ -593,6 +593,19 @@ export default function App() {
                 >
                   <option value="lbs">Pounds (lbs)</option>
                   <option value="kg">Kilograms (kg)</option>
+                </select>
+              </div>
+              <div className="setting-item">
+                <label>Session timeout (idle)</label>
+                <select 
+                  value={sessionTimeoutMinutes} 
+                  onChange={(e) => setSessionTimeoutMinutes(parseInt(e.target.value, 10))}
+                >
+                  <option value={5}>5 minutes</option>
+                  <option value={15}>15 minutes</option>
+                  <option value={30}>30 minutes</option>
+                  <option value={60}>60 minutes</option>
+                  <option value={120}>2 hours</option>
                 </select>
               </div>
               <div className="setting-item">
