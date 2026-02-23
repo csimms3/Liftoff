@@ -1,69 +1,73 @@
 # Liftoff Architecture
 
 ## Overview
-Liftoff is a full-stack workout tracking application with a React frontend and Go backend.
+Liftoff is a full-stack workout tracking application with a React frontend and Go backend. All workout data is isolated per user via JWT authentication.
 
 ## Tech Stack
-- **Frontend**: React 19 + TypeScript + Vite
-- **Backend**: Go + Gin + GraphQL + PostgreSQL/SQLite
+- **Frontend**: React 18 + TypeScript + Vite
+- **Backend**: Go + Gin (REST) + pgx / SQLite
 - **Database**: PostgreSQL (production) / SQLite (development)
+- **Auth**: JWT (access tokens) with Bearer scheme
 - **Package Manager**: pnpm
 
 ## Architecture Diagram
 
 ```
-┌─────────────────┐    HTTP/GraphQL    ┌─────────────────┐
+┌─────────────────┐    REST /api      ┌─────────────────┐
 │   React App     │◄──────────────────►│   Go Backend    │
-│   (localhost:5173)│                   │  (localhost:8080)│
+│   (localhost:5173)│  Bearer JWT       │  (localhost:8080)│
 └─────────────────┘                    └─────────────────┘
          │                                       │
-         │ localStorage                           │
-         │ (fallback)                            │
+         │ localStorage (auth)                   │
          ▼                                       ▼
 ┌─────────────────┐                    ┌─────────────────┐
-│   Browser       │                    │   SQLite/PostgreSQL│
-│   Storage       │                    │   Database      │
+│   AuthContext   │                    │   SQLite/PostgreSQL│
+│   + JWT token   │                    │   (user_id isolation)│
 └─────────────────┘                    └─────────────────┘
 ```
 
 ## Data Flow
-1. **Frontend** makes API calls to backend
-2. **Backend** processes requests and queries database
-3. **Database** stores workout data persistently
-4. **Frontend** updates UI with response data
+1. **Frontend** authenticates (register/login) and stores JWT in localStorage
+2. **API calls** include `Authorization: Bearer <token>` header
+3. **Backend** validates JWT via AuthMiddleware and scopes queries by `user_id`
+4. **Database** stores user-scoped workout data
 
 ## API Endpoints
-- `GET /api/workouts` - List all workouts
-- `POST /api/workouts` - Create new workout
-- `GET /api/workouts/:id` - Get specific workout
-- `POST /api/exercises` - Add exercise to workout
-- `GET /api/workouts/:id/exercises` - Get exercises for workout
-- `POST /api/sessions` - Start workout session
-- `GET /api/sessions/active` - Get active session
-- `PUT /api/sessions/:id/end` - End session
+- `POST /api/auth/register` - Register
+- `POST /api/auth/login` - Login
+- `POST /api/auth/forgot-password` - Request reset
+- `POST /api/auth/reset-password` - Reset password
+- `GET /api/auth/me` - Current user (protected)
+- `GET /api/workouts` - List workouts (protected)
+- `POST /api/workouts` - Create workout (protected)
+- `GET /api/workouts/:id` - Get workout (protected)
+- `POST /api/exercises` - Add exercise (protected)
+- `GET /api/workouts/:id/exercises` - Get exercises (protected)
+- `POST /api/sessions` - Start session (protected)
+- `GET /api/sessions/active` - Active session (protected)
+- `PUT /api/sessions/:id/end` - End session (protected)
 
 ## Database Schema
-- `workouts` - Workout definitions
+- `users` - User accounts (id, email, password_hash)
+- `workouts` - Workout definitions (user_id for isolation)
 - `exercises` - Exercise definitions within workouts
-- `workout_sessions` - Active workout sessions
+- `workout_sessions` - Active workout sessions (user_id)
 - `session_exercises` - Exercises in a session
 - `exercise_sets` - Individual sets performed
+- `dino_scores` - Game scores (user_id)
 
 ## Development Workflow
 1. Start backend: `cd backend && go run main.go`
 2. Start frontend: `cd frontend && pnpm dev`
-3. Access app: http://localhost:5173
+3. Access app: http://localhost:5173 (Vite proxies /api to backend)
 
 ## Current Status
-- ✅ **Stage 1**: API service created, frontend connected to backend
-- ✅ **Stage 2**: Backend with SQLite support, basic API working
-- ✅ **Stage 3**: Frontend polish and error handling
-- ✅ **Stage 4**: Basic testing and backend fixes
-- 🚀 **Ready for production**: Core functionality complete
+- User auth (register, login, forgot/reset password, session timeout)
+- Data isolation by user_id
+- Core workout, exercise, session, progress features
+- Exercise templates and progress analytics
+- Ready for production (set JWT_SECRET and deploy)
 
 ## Next Steps
 - Add more comprehensive tests
-- Set up production deployment (Vercel/Netlify)
-- Add user authentication
-- Implement GraphQL resolvers
-- Add exercise library and progress analytics
+- Set up production deployment

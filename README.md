@@ -4,7 +4,8 @@ A full-stack workout tracking application built with Go backend and React fronte
 
 ## Features
 
-- **Workout Management**: Create, edit, and delete workout plans
+- **User Authentication**: Register, login, forgot password, reset password, session timeout
+- **Workout Management**: Create, edit, and delete workout plans (per-user)
 - **Exercise Tracking**: Add exercises with sets, reps, and weights
 - **Exercise Templates**: Quick-add common exercises from predefined templates
 - **Workout Sessions**: Track active workout sessions and progress
@@ -16,35 +17,40 @@ A full-stack workout tracking application built with Go backend and React fronte
 ### Backend (Go)
 - **Framework**: Gin web framework
 - **Database**: PostgreSQL (primary) with SQLite fallback
-- **ORM**: GORM for database operations
-- **Architecture**: Repository pattern with clean separation of concerns
+- **Data Access**: pgx / database/sql with repository pattern
+- **Auth**: JWT (access tokens) with AuthMiddleware for protected routes
 
 ### Frontend (React + TypeScript)
 - **Framework**: React 18 with TypeScript
 - **Build Tool**: Vite for fast development and building
 - **Styling**: CSS with responsive design principles
-- **State Management**: React hooks (useState, useEffect)
+- **State Management**: React hooks, AuthContext for auth state
 
 ## Project Structure
 
 ```
 Liftoff/
 ├── backend/                 # Go backend application
+│   ├── auth/               # JWT auth and middleware
 │   ├── database/           # Database connection and configuration
+│   ├── handlers/            # HTTP handlers (auth, etc.)
 │   ├── models/             # Data models and structs
 │   ├── repository/         # Data access layer
-│   ├── main.go            # Main application entry point
-│   └── go.mod             # Go module dependencies
-├── frontend/               # React frontend application
-│   ├── src/               # Source code
-│   │   ├── components/    # React components
-│   │   ├── api.ts         # API service and interfaces
-│   │   ├── App.tsx        # Main application component
-│   │   └── App.css        # Application styles
-│   ├── package.json       # Node.js dependencies
-│   └── vite.config.ts     # Vite configuration
+│   ├── main.go             # Main application entry point
+│   └── go.mod              # Go module dependencies
+├── frontend/                # React frontend application
+│   ├── src/
+│   │   ├── components/      # React components (AuthGate, LoginPage, etc.)
+│   │   ├── context/        # AuthContext
+│   │   ├── api.ts          # API service and interfaces
+│   │   ├── App.tsx         # Main application component
+│   │   └── App.css         # Application styles
+│   ├── package.json
+│   └── vite.config.ts      # Vite config (proxies /api to backend)
+├── docs/
+│   └── architecture.md     # Architecture overview
 ├── docker-compose.yml      # Docker setup for PostgreSQL
-└── README.md              # This file
+└── README.md               # This file
 ```
 
 ## Setup & Installation
@@ -70,30 +76,41 @@ pnpm install
 pnpm dev
 ```
 
-The frontend will start on `http://localhost:5173`
+The frontend will start on `http://localhost:5173` and proxy `/api` to the backend in development.
 
 ### Database Setup
 The application automatically detects and connects to:
 1. PostgreSQL (if available)
 2. SQLite (fallback, creates `liftoff.db` file)
 
+### Auth (optional env)
+- `JWT_SECRET` - Secret for signing tokens (default: dev secret)
+- `JWT_EXPIRY_MINUTES` - Session token expiry (default: 15)
+
 ## API Endpoints
 
-### Workouts
-- `GET /api/workouts` - List all workouts
+### Authentication (public)
+- `POST /api/auth/register` - Register new user
+- `POST /api/auth/login` - Login
+- `POST /api/auth/forgot-password` - Request password reset email
+- `POST /api/auth/reset-password` - Reset password with token
+- `GET /api/auth/me` - Get current user (requires `Authorization: Bearer <token>`)
+
+### Workouts (require auth)
+- `GET /api/workouts` - List workouts for current user
 - `POST /api/workouts` - Create new workout
 - `GET /api/workouts/:id` - Get specific workout
 - `DELETE /api/workouts/:id` - Delete workout
 
-### Exercises
+### Exercises (require auth)
 - `POST /api/exercises` - Add exercise to workout
 - `DELETE /api/exercises/:id` - Remove exercise
 - `GET /api/workouts/:id/exercises` - Get exercises for workout
 
-### Exercise Templates
+### Exercise Templates (require auth)
 - `GET /api/exercise-templates` - Get predefined exercise templates
 
-### Sessions
+### Sessions (require auth)
 - `POST /api/sessions` - Start workout session
 - `GET /api/sessions/active` - Get active session
 - `PUT /api/sessions/:id/end` - End workout session
