@@ -2,8 +2,11 @@ package repository
 
 import (
 	"context"
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
+	"time"
 
 	"liftoff/backend/models"
 
@@ -74,6 +77,94 @@ func (r *UserRepository) createUserSQLite(ctx context.Context, id, email, passwo
 	}
 
 	return &user, nil
+}
+
+// CreatePasswordResetToken creates a reset token for the user
+func (r *UserRepository) CreatePasswordResetToken(ctx context.Context, userID string, tokenHash string, expiresAt time.Time) error {
+	id := uuid.New().String()
+	if r.useSQLite {
+		return r.createPasswordResetTokenSQLite(ctx, id, userID, tokenHash, expiresAt)
+	}
+	return r.createPasswordResetTokenPostgres(ctx, id, userID, tokenHash, expiresAt)
+}
+
+func (r *UserRepository) createPasswordResetTokenPostgres(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) error {
+	_, err := r.db.Exec(ctx, `
+		INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+		VALUES ($1, $2, $3, $4, NOW())
+	`, id, userID, tokenHash, expiresAt)
+	return err
+}
+
+func (r *UserRepository) createPasswordResetTokenSQLite(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) error {
+	_, err := r.sqlite.ExecContext(ctx, `
+		INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+	`, id, userID, tokenHash, expiresAt)
+	return err
+}
+
+// GetUserIDByResetToken returns user ID if token is valid and not expired
+func (r *UserRepository) GetUserIDByResetToken(ctx context.Context, tokenHash string) (string, error) {
+	if r.useSQLite {
+		return r.getUserIDByResetTokenSQLite(ctx, tokenHash)
+	}
+	return r.getUserIDByResetTokenPostgres(ctx, tokenHash)
+}
+
+func (r *UserRepository) getUserIDByResetTokenPostgres(ctx context.Context, tokenHash string) (string, error) {
+	var userID string
+	err := r.db.QueryRow(ctx, `
+		SELECT user_id FROM password_reset_tokens
+		WHERE token_hash = $1 AND expires_at > NOW()
+		LIMIT 1
+	`, tokenHash).Scan(&userID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return userID, err
+}
+
+func (r *UserRepository) getUserIDByResetTokenSQLite(ctx context.Context, tokenHash string) (string, error) {
+	var userID string
+	err := r.sqlite.QueryRowContext(ctx, `
+		SELECT user_id FROM password_reset_tokens
+		WHERE token_hash = ? AND expires_at > datetime('now')
+		LIMIT 1
+	`, tokenHash).Scan(&userID)
+	if err == sql.ErrNoRows {
+		return "", nil
+	}
+	return userID, err
+}
+
+// DeletePasswordResetToken removes used/expired tokens for a user
+func (r *UserRepository) DeletePasswordResetToken(ctx context.Context, tokenHash string) error {
+	if r.useSQLite {
+		_, err := r.sqlite.ExecContext(ctx, `DELETE FROM password_reset_tokens WHERE token_hash = ?`, tokenHash)
+		return err
+	}
+	_, err := r.db.Exec(ctx, `DELETE FROM password_reset_tokens WHERE token_hash = $1`, tokenHash)
+	return err
+}
+
+// UpdatePassword updates a user's password
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID, passwordHash string) error {
+	if r.useSQLite {
+		_, err := r.sqlite.ExecContext(ctx, `UPDATE users SET password_hash = ? WHERE id = ?`, passwordHash, userID)
+		return err
+	}
+	_, err := r.db.Exec(ctx, `UPDATE users SET password_hash = $1 WHERE id = $2`, passwordHash, userID)
+	return err
+}
+
+// GenerateSecureToken creates a cryptographically secure random token
+func GenerateSecureToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 // GetByEmail retrieves a user by email (case-insensitive)

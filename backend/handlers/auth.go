@@ -1,8 +1,11 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
+	"os"
 	"regexp"
+	"time"
 
 	"liftoff/backend/auth"
 	"liftoff/backend/repository"
@@ -149,6 +152,109 @@ func (h *AuthHandler) Register(c *gin.Context) {
 			Email: user.Email,
 		},
 	})
+}
+
+// ForgotPasswordRequest is the request body for forgot password
+type ForgotPasswordRequest struct {
+	Email string `json:"email" binding:"required"`
+}
+
+// ResetPasswordRequest is the request body for reset password
+type ResetPasswordRequest struct {
+	Token       string `json:"token" binding:"required"`
+	NewPassword string `json:"newPassword" binding:"required"`
+}
+
+// ForgotPassword initiates password reset - sends email with reset link (or logs in dev)
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req ForgotPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Email is required"})
+		return
+	}
+
+	email := auth.NormalizeEmail(req.Email)
+	if !emailRegex.MatchString(email) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid email format"})
+		return
+	}
+
+	user, err := h.userRepo.GetByEmail(c.Request.Context(), email)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "If an account exists, a reset link has been sent"})
+		return
+	}
+	// Always return success to prevent email enumeration
+	if user == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "If an account exists, a reset link has been sent"})
+		return
+	}
+
+	plainToken, err := repository.GenerateSecureToken()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate reset token"})
+		return
+	}
+
+	tokenHash := auth.HashToken(plainToken)
+	expiresAt := time.Now().Add(1 * time.Hour)
+	err = h.userRepo.CreatePasswordResetToken(c.Request.Context(), user.ID, tokenHash, expiresAt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create reset token"})
+		return
+	}
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		frontendURL = "http://localhost:5173"
+	}
+	resetLink := frontendURL + "/reset-password?token=" + plainToken
+
+	// In production, send email. For dev, log the link.
+	if os.Getenv("SMTP_HOST") != "" {
+		// TODO: Integrate with email service (SMTP, SendGrid, etc.)
+		log.Printf("Password reset for %s: %s", email, resetLink)
+	} else {
+		log.Printf("Password reset link for %s (dev mode): %s", email, resetLink)
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "If an account exists, a reset link has been sent"})
+}
+
+// ResetPassword completes password reset with token
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req ResetPasswordRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Token and new password are required"})
+		return
+	}
+
+	if err := auth.ValidatePassword(req.NewPassword); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	tokenHash := auth.HashToken(req.Token)
+	userID, err := h.userRepo.GetUserIDByResetToken(c.Request.Context(), tokenHash)
+	if err != nil || userID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid or expired reset token"})
+		return
+	}
+
+	passwordHash, err := auth.HashPassword(req.NewPassword)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset password"})
+		return
+	}
+
+	if err := h.userRepo.UpdatePassword(c.Request.Context(), userID, passwordHash); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to reset password"})
+		return
+	}
+
+	_ = h.userRepo.DeletePasswordResetToken(c.Request.Context(), tokenHash)
+
+	c.JSON(http.StatusOK, gin.H{"message": "Password has been reset successfully"})
 }
 
 // Me returns the current authenticated user (requires AuthMiddleware)

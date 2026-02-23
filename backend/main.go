@@ -62,6 +62,8 @@ func main() {
 		// Auth routes (no middleware required for login/register)
 		api.POST("/auth/login", authHandler.Login)
 		api.POST("/auth/register", authHandler.Register)
+		api.POST("/auth/forgot-password", authHandler.ForgotPassword)
+		api.POST("/auth/reset-password", authHandler.ResetPassword)
 		api.GET("/auth/me", auth.AuthMiddleware(), authHandler.Me)
 
 		// Protected routes - add auth middleware group

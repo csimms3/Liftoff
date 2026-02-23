@@ -1,12 +1,20 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+// HashToken creates a deterministic hash of a token for secure storage
+func HashToken(token string) string {
+	h := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(h[:])
+}
 
 var (
 	ErrPasswordTooShort       = errors.New("password must be at least 8 characters")

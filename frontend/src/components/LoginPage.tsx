@@ -4,9 +4,10 @@ import './AuthPages.css'
 
 interface LoginPageProps {
   onSwitchToRegister: () => void
+  onSwitchToForgotPassword?: () => void
 }
 
-export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
+export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: LoginPageProps) {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -59,7 +60,7 @@ export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
               autoComplete="current-password"
             />
           </div>
-          <div className="auth-option">
+          <div className="auth-option auth-option-row">
             <label className="auth-checkbox">
               <input
                 type="checkbox"
@@ -68,6 +69,15 @@ export function LoginPage({ onSwitchToRegister }: LoginPageProps) {
               />
               <span>Remember me</span>
             </label>
+            {onSwitchToForgotPassword && (
+              <button
+                type="button"
+                className="auth-link auth-link-small"
+                onClick={onSwitchToForgotPassword}
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
           <button type="submit" className="auth-button" disabled={loading}>
             {loading ? 'Signing in...' : 'Sign in'}
