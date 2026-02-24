@@ -47,6 +47,8 @@ Liftoff/
 │   │   └── App.css         # Application styles
 │   ├── package.json
 │   └── vite.config.ts      # Vite config (proxies /api to backend)
+├── scripts/
+│   └── boot.sh             # Start backend + frontend
 ├── docs/
 │   └── architecture.md     # Architecture overview
 ├── docker-compose.yml      # Docker setup for PostgreSQL
@@ -54,6 +56,14 @@ Liftoff/
 ```
 
 ## Setup & Installation
+
+### Quick start (run everything)
+```bash
+# From project root - install deps first if needed
+cd frontend && pnpm install && cd ..
+./scripts/boot.sh
+```
+Starts backend (8080) and frontend (5173). Open http://localhost:5173. Press Ctrl+C to stop both.
 
 ### Prerequisites
 - Go 1.21+ 
