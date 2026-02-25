@@ -13,7 +13,7 @@ function getResetToken(): string | null {
 }
 
 export function AuthGate() {
-  const { isAuthenticated, isLoading, isAdmin, showAdmin, setShowAdmin } = useAuth()
+  const { isAuthenticated, isLoading, isAdmin, showAdmin, setShowAdmin, logout } = useAuth()
   const [showRegister, setShowRegister] = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetToken, setResetToken] = useState<string | null>(null)
@@ -86,19 +86,38 @@ export function AuthGate() {
           }}
         >
           <p style={{ color: 'var(--text-primary)' }}>Access denied. Admin only.</p>
-          <button
-            type="button"
-            onClick={() => setShowAdmin(false)}
-            style={{
-              padding: '0.5rem 1rem',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              cursor: 'pointer',
-            }}
-          >
-            Back to app
-          </button>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+            Sign in with admin@liftoff.local to access the admin panel.
+          </p>
+          <div style={{ display: 'flex', gap: '0.75rem' }}>
+            <button
+              type="button"
+              onClick={() => { logout(); setShowAdmin(true); }}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--accent-color)',
+                border: 'none',
+                borderRadius: '8px',
+                color: 'white',
+                cursor: 'pointer',
+              }}
+            >
+              Sign out and sign in as admin
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAdmin(false)}
+              style={{
+                padding: '0.5rem 1rem',
+                background: 'var(--bg-secondary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+              }}
+            >
+              Back to app
+            </button>
+          </div>
         </div>
       )
     }

@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log"
 
+	"liftoff/backend/auth"
+
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const adminUserID = "00000000-0000-0000-0000-000000000001"
 const adminEmail = "admin@liftoff.local"
-const adminPasswordHash = "$2a$10$SlmOtj3A17j2JLju8e9VfeHZo/SjwuC4ciN0mbSXR9gILDiuaJexe"
+const adminPlainPassword = "Admin123!"
 
 // MigrateSQLite runs pending migrations on SQLite (adds user_id, migrates data)
 func MigrateSQLite(db *sql.DB) error {
@@ -22,7 +24,8 @@ func MigrateSQLite(db *sql.DB) error {
 		return fmt.Errorf("failed to check schema: %w", err)
 	}
 	if count > 0 {
-		return nil // Already migrated
+		// Already migrated - ensure admin user exists (may be missing if migration was skipped)
+		return ensureAdminUserSQLite(db)
 	}
 
 	log.Println("Running migration: add user_id to workouts, sessions, dino_game_scores")
@@ -35,11 +38,9 @@ func MigrateSQLite(db *sql.DB) error {
 		}
 	}
 
-	// Create admin user for migrated data (password: Admin123!)
-	_, err = db.Exec(`INSERT OR IGNORE INTO users (id, email, password_hash, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
-		adminUserID, adminEmail, adminPasswordHash)
-	if err != nil {
-		return fmt.Errorf("failed to create admin user: %w", err)
+	// Create admin user (password: Admin123!)
+	if err := ensureAdminUserSQLite(db); err != nil {
+		return fmt.Errorf("failed to ensure admin user: %w", err)
 	}
 
 	// Migrate existing data to admin user
@@ -54,6 +55,19 @@ func MigrateSQLite(db *sql.DB) error {
 	return nil
 }
 
+// ensureAdminUserSQLite creates or updates admin user with correct password
+func ensureAdminUserSQLite(db *sql.DB) error {
+	hash, err := auth.HashPassword(adminPlainPassword)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`INSERT INTO users (id, email, password_hash, created_at)
+		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+		ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash`,
+		adminUserID, adminEmail, hash)
+	return err
+}
+
 // MigratePostgres runs pending migrations on PostgreSQL
 func MigratePostgres(pool *pgxpool.Pool) error {
 	ctx := context.Background()
@@ -65,8 +79,12 @@ func MigratePostgres(pool *pgxpool.Pool) error {
 			SELECT 1 FROM information_schema.columns
 			WHERE table_name = 'workouts' AND column_name = 'user_id'
 		)`).Scan(&exists)
-	if err != nil || exists {
+	if err != nil {
 		return err
+	}
+	if exists {
+		// Already migrated - ensure admin user exists
+		return ensureAdminUserPostgres(ctx, pool)
 	}
 
 	log.Println("Running migration: add user_id to workouts, sessions, dino_game_scores")
@@ -84,12 +102,8 @@ func MigratePostgres(pool *pgxpool.Pool) error {
 	}
 
 	// Create admin user
-	_, err = pool.Exec(ctx, `
-		INSERT INTO users (id, email, password_hash, created_at)
-		VALUES ($1, $2, $3, NOW())
-		ON CONFLICT (email) DO NOTHING`, adminUserID, adminEmail, adminPasswordHash)
-	if err != nil {
-		return fmt.Errorf("failed to create admin user: %w", err)
+	if err := ensureAdminUserPostgres(ctx, pool); err != nil {
+		return fmt.Errorf("failed to ensure admin user: %w", err)
 	}
 
 	// Migrate data
@@ -117,4 +131,18 @@ func MigratePostgres(pool *pgxpool.Pool) error {
 
 	log.Println("Migration completed: existing data assigned to admin@liftoff.local (password: Admin123!)")
 	return nil
+}
+
+// ensureAdminUserPostgres creates or updates admin user with correct password
+func ensureAdminUserPostgres(ctx context.Context, pool *pgxpool.Pool) error {
+	hash, err := auth.HashPassword(adminPlainPassword)
+	if err != nil {
+		return err
+	}
+	_, err = pool.Exec(ctx, `
+		INSERT INTO users (id, email, password_hash, created_at)
+		VALUES ($1, $2, $3, NOW())
+		ON CONFLICT (email) DO UPDATE SET password_hash = $3 WHERE users.email = $2`,
+		adminUserID, adminEmail, hash)
+	return err
 }

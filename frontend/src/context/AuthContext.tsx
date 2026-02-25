@@ -213,7 +213,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     expiresAt,
     isLoading,
     isAuthenticated: !!token,
-    isAdmin: !!user?.isAdmin,
+    isAdmin: !!user?.isAdmin || user?.email?.toLowerCase() === 'admin@liftoff.local',
     login,
     register,
     logout,

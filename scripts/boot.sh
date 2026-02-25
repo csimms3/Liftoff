@@ -14,6 +14,12 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM
 
+# Kill any existing backend on 8080 so we get fresh routes
+if command -v lsof >/dev/null 2>&1; then
+  lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+  sleep 1
+fi
+
 echo "Starting backend (port 8080)..."
 cd "$ROOT/backend"
 go run . &
