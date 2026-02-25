@@ -11,6 +11,10 @@ backend/liftoff
 frontend/node_modules/
 backend/vendor/
 
+# Frontend build and Vite cache
+frontend/dist/
+frontend/.vite/
+
 # Environment files
 .env
 .env.local

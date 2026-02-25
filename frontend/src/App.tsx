@@ -7,35 +7,10 @@ import { useAuth } from './context/AuthContext'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet } from './api'
 import './App.css'
 
-/**
- * Main Application Component
- * 
- * Liftoff is a comprehensive workout tracking application that allows users to:
- * - Create and manage workout plans
- * - Track workout sessions in real-time
- * - Monitor progress over time
- * - Access exercise templates for quick workout building
- * - View workout history and analytics
- * 
- * The app uses a multi-view architecture with state management for:
- * - Workout management (create, edit, delete)
- * - Active session tracking
- * - Progress monitoring
- * - Exercise template library
- * 
- * Features:
- * - Responsive design for all screen sizes
- * - Real-time session tracking
- * - Exercise template dropdown for quick addition
- * - Progress visualization
- * - Error handling and loading states
- */
 export default function App() {
   const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes, isAdmin, setShowAdmin } = useAuth()
-  // API service instance for backend communication
   const apiService = useMemo(() => new ApiService(), [])
   
-  // Application state management
   const [view, setView] = useState<'workouts' | 'session' | 'progress' | 'library'>('workouts');
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
@@ -45,7 +20,6 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
-  // Form state for creating new workouts and exercises
   const [newWorkoutName, setNewWorkoutName] = useState('')
   const [newExercise, setNewExercise] = useState({
     name: '',
@@ -54,17 +28,11 @@ export default function App() {
     weight: 0
   })
   
-  // Exercise template state for quick exercise addition
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
   const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
-
-  // Settings menu state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-  // Dino game state
   const [isDinoGameOpen, setIsDinoGameOpen] = useState(false);
   
-  // Theme state
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const savedTheme = localStorage.getItem('liftoff-theme');
     return (savedTheme as 'light' | 'dark') || 'light';
@@ -76,24 +44,15 @@ export default function App() {
     return (savedUnit as 'lbs' | 'kg') || 'lbs';
   });
   
-  /**
-   * Apply theme to document body and save to localStorage
-   */
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
     localStorage.setItem('liftoff-theme', theme);
   }, [theme]);
 
-  /**
-   * Save weight unit to localStorage
-   */
   useEffect(() => {
     localStorage.setItem('liftoff-weight-unit', weightUnit);
   }, [weightUnit]);
 
-  /**
-   * Convert weight between units
-   */
   const convertWeight = (weight: number, fromUnit: 'lbs' | 'kg', toUnit: 'lbs' | 'kg'): number => {
     if (fromUnit === toUnit) return weight;
     if (fromUnit === 'lbs' && toUnit === 'kg') return weight * 0.453592;
@@ -101,21 +60,14 @@ export default function App() {
     return weight;
   };
 
-  /**
-   * Format weight with unit
-   */
   const formatWeight = (weight: number): string => {
     const convertedWeight = convertWeight(weight, 'lbs', weightUnit);
     return `${convertedWeight.toFixed(1)} ${weightUnit}`;
   };
 
-  /**
-   * Determines the weight type for an exercise based on its name
-   */
   const getWeightType = (exerciseName: string): string => {
     const name = exerciseName.toLowerCase();
     
-    // Bodyweight exercises
     const bodyweightKeywords = [
       'push-up', 'pull-up', 'chin-up', 'dip', 'plank', 'crunch', 'sit-up',
       'lunge', 'burpee', 'mountain climber', 'jump squat', 'high knee',
@@ -123,24 +75,20 @@ export default function App() {
       'wall sit', 'jumping jack', 'squat jump', 'pistol squat', 'handstand'
     ];
     
-    // Machine-based exercises
     const machineKeywords = [
       'lat pulldown', 'cable', 'machine', 'leg press', 'chest press',
       'seated row', 'tricep pushdown', 'leg extension', 'leg curl',
       'chest fly', 'shoulder press machine', 'ab crunch machine'
     ];
     
-    // Check for bodyweight exercises
     if (bodyweightKeywords.some(keyword => name.includes(keyword))) {
       return 'Bodyweight';
     }
     
-    // Check for machine exercises
     if (machineKeywords.some(keyword => name.includes(keyword))) {
       return 'Machine';
     }
     
-    // Check for weighted exercises (barbell, dumbbell, kettlebell, etc.)
     const weightedKeywords = [
       'barbell', 'dumbbell', 'kettlebell', 'weighted', 'deadlift',
       'squat', 'press', 'row', 'curl', 'extension', 'raise', 'fly'
@@ -150,29 +98,21 @@ export default function App() {
       return 'Weighted';
     }
     
-    // Default to "Weighted" for exercises that don't match bodyweight patterns
     return 'Weighted';
   };
 
-  /**
-   * Load all workouts from the backend API
-   * 
-   * Updates the workouts state with fetched data and handles loading states.
-   */
   const loadWorkouts = useCallback(async () => {
     try {
       setLoading(true)
       const data = await apiService.getWorkouts()
       const list = Array.isArray(data) ? data : []
 
-      // Load exercises for each workout
       const workoutsWithExercises = await Promise.all(
         list.map(async (workout) => {
           try {
             const exercises = await apiService.getExercisesByWorkout(workout.id)
             return { ...workout, exercises }
           } catch {
-            // If loading exercises fails, use empty array
             return { ...workout, exercises: [] }
           }
         })
@@ -187,29 +127,16 @@ export default function App() {
     }
   }, [apiService])
 
-  /**
-   * Load the currently active workout session
-   * 
-   * Silently fails if no active session exists, as this is optional.
-   */
   const loadActiveSession = useCallback(async () => {
     try {
       const session = await apiService.getActiveSession()
-      console.log('Loaded active session:', session)
       setActiveSession(session)
       return session
-    } catch (error) {
-      console.log('No active session or error:', error)
-      // Silent fail for active session - it's optional
+    } catch {
       return null
     }
   }, [apiService])
 
-  /**
-   * Load exercise templates for the quick-add dropdown
-   * 
-   * Fetches predefined exercise templates that users can quickly add to workouts.
-   */
   const loadExerciseTemplates = useCallback(async () => {
     try {
       const templatesData = await apiService.getExerciseTemplates();
@@ -219,9 +146,6 @@ export default function App() {
     }
   }, [apiService]);
 
-  /**
-   * Load progress data for charts and analytics
-   */
   const loadProgressData = useCallback(async () => {
     try {
       const data = await apiService.getProgressData();
@@ -231,9 +155,6 @@ export default function App() {
     }
   }, [apiService]);
 
-  /**
-   * Load completed workout sessions for history
-   */
   const loadCompletedSessions = useCallback(async () => {
     try {
       const sessions = await apiService.getCompletedSessions();
@@ -260,20 +181,6 @@ export default function App() {
     loadData()
   }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
 
-  // Debug active session changes
-  useEffect(() => {
-    if (activeSession) {
-      console.log('Active session changed:', activeSession)
-      console.log('Exercises:', activeSession.exercises)
-      console.log('Workout:', activeSession.workout)
-    }
-  }, [activeSession])
-
-  /**
-   * Create a new workout with the specified name
-   * 
-   * Adds the new workout to the workouts list and clears the input field.
-   */
   const createWorkout = async () => {
     if (!newWorkoutName.trim()) return
     
@@ -289,11 +196,6 @@ export default function App() {
     }
   }
 
-  /**
-   * Add a new exercise to the current workout
-   * 
-   * Creates the exercise via API and updates the current workout state.
-   */
   const addExercise = async () => {
     if (!newExercise.name.trim() || !currentWorkout) return
     
@@ -337,7 +239,6 @@ export default function App() {
 
     setLoading(true);
     try {
-      // Add the exercise from the template
       const newExercise = await apiService.createExercise({
         name: template.name,
         sets: template.default_sets,
@@ -346,19 +247,14 @@ export default function App() {
         workout_id: currentWorkout.id
       });
       
-      // Update the current workout locally with the new exercise
       const updatedWorkout = {
         ...currentWorkout,
         exercises: [...(currentWorkout.exercises || []), newExercise]
       };
       setCurrentWorkout(updatedWorkout);
-      
-      // Update the workouts list locally
       setWorkouts(workouts.map((w: Workout) => 
         w.id === currentWorkout.id ? updatedWorkout : w
       ));
-      
-      // Reset template selection
       setSelectedExerciseTemplate('');
     } catch (error) {
       console.error('Template exercise creation error:', error);
@@ -371,19 +267,10 @@ export default function App() {
   const startWorkout = async (workout: Workout) => {
     try {
       setLoading(true)
-      console.log('Starting workout:', workout)
-      
-      // Create a new session for this workout
       const session = await apiService.createSession(workout.id)
-      console.log('Session created:', session)
       setActiveSession(session)
       setCurrentWorkout(workout)
-      
-      // Refresh the active session to ensure exercises are loaded
-      const refreshedSession = await loadActiveSession()
-      console.log('Refreshed session:', refreshedSession)
-      
-      // Don't auto-switch views - let user click Active Session tab
+      await loadActiveSession()
     } catch (error) {
       console.error('Failed to start workout session:', error)
       setError('Failed to start workout session')
@@ -496,11 +383,6 @@ export default function App() {
     setView('workouts');
   };
 
-  /**
-   * Add an exercise from the library to the current workout
-   * 
-   * Creates a new exercise using the template data and adds it to the current workout.
-   */
   const addExerciseFromLibrary = async (template: ExerciseTemplate) => {
     if (!currentWorkout) {
       setError('Please select a workout first');

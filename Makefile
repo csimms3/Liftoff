@@ -1,72 +1,64 @@
-.PHONY: help build run test clean db-up db-down db-reset
+.PHONY: help build run dev test clean db-up db-down db-reset deps health
 
-# Default target
 help:
-	@echo "Liftoff Backend Development Commands"
+	@echo "Liftoff Development Commands"
 	@echo ""
-	@echo "Database:"
-	@echo "  db-up      - Start PostgreSQL database with Docker"
-	@echo "  db-down    - Stop PostgreSQL database"
-	@echo "  db-reset   - Reset database (stop, start, migrate)"
+	@echo "Quick start:"
+	@echo "  ./scripts/boot.sh  - Start backend + frontend together"
 	@echo ""
-	@echo "Development:"
-	@echo "  build      - Build the Go application"
-	@echo "  run        - Run the server (requires database)"
-	@echo "  test       - Run tests"
-	@echo "  clean      - Clean build artifacts"
+	@echo "Backend:"
+	@echo "  build    - Build the Go binary"
+	@echo "  run      - Build and run the server"
+	@echo "  dev      - Run the server without building (go run .)"
+	@echo "  test     - Run all tests"
+	@echo "  clean    - Remove build artifacts"
+	@echo "  deps     - Tidy and download Go dependencies"
 	@echo ""
-	@echo "Example workflow:"
-	@echo "  make db-up && make run"
+	@echo "Database (PostgreSQL via Docker):"
+	@echo "  db-up    - Start PostgreSQL with Docker"
+	@echo "  db-down  - Stop PostgreSQL"
+	@echo "  db-reset - Reset PostgreSQL (stop + start)"
+	@echo ""
+	@echo "  health   - Check server health endpoint"
 
-# Database commands
-db-up:
-	@echo "Starting PostgreSQL database..."
-	docker-compose up -d postgres
-	@echo "Waiting for database to be ready..."
-	@until docker-compose exec -T postgres pg_isready -U postgres; do sleep 1; done
-	@echo "Database is ready!"
-
-db-down:
-	@echo "Stopping PostgreSQL database..."
-	docker-compose down
-
-db-reset: db-down db-up
-	@echo "Database reset complete!"
-
-# Development commands
+# Backend
 build:
-	@echo "Building application..."
-	go build -o bin/liftoff main.go
+	@echo "Building..."
+	cd backend && go build -o bin/liftoff .
 
 run: build
-	@echo "Starting Liftoff server..."
-	./bin/liftoff
+	@echo "Starting server..."
+	./backend/bin/liftoff
 
 dev:
-	@echo "Starting Liftoff server in development mode..."
-	go run main.go
+	@echo "Starting server (dev)..."
+	cd backend && go run .
 
 test:
-	@echo "Running tests..."
-	go test ./...
+	@echo "Running backend tests..."
+	cd backend && go test ./...
 
 clean:
 	@echo "Cleaning build artifacts..."
-	rm -rf bin/
-	go clean
+	rm -rf backend/bin/
+	cd backend && go clean
 
-# Install dependencies
 deps:
-	@echo "Installing dependencies..."
-	go mod tidy
-	go mod download
+	@echo "Tidying dependencies..."
+	cd backend && go mod tidy && go mod download
 
-# Database migration
-migrate:
-	@echo "Running database migrations..."
-	psql -h localhost -U postgres -d liftoff -f migrations/001_initial_schema.sql
+# PostgreSQL via Docker
+db-up:
+	@echo "Starting PostgreSQL..."
+	docker-compose up -d postgres
+	@until docker-compose exec -T postgres pg_isready -U postgres; do sleep 1; done
+	@echo "Database ready."
 
-# Health check
+db-down:
+	docker-compose down
+
+db-reset: db-down db-up
+
+# Misc
 health:
-	@echo "Checking application health..."
-	curl -f http://localhost:8080/health || echo "Server not responding"
+	curl -sf http://localhost:8080/health && echo "OK" || echo "Server not responding"
