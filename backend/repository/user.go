@@ -262,3 +262,46 @@ func (r *UserRepository) getByIDSQLite(ctx context.Context, id string) (*models.
 
 	return &user, nil
 }
+
+// ListAllUsers returns all users (admin only). Excludes password_hash.
+func (r *UserRepository) ListAllUsers(ctx context.Context) ([]*models.User, error) {
+	if r.useSQLite {
+		return r.listAllUsersSQLite(ctx)
+	}
+	return r.listAllUsersPostgres(ctx)
+}
+
+func (r *UserRepository) listAllUsersPostgres(ctx context.Context) ([]*models.User, error) {
+	rows, err := r.db.Query(ctx, `SELECT id, email, created_at FROM users ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+	var users []*models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+	}
+	return users, nil
+}
+
+func (r *UserRepository) listAllUsersSQLite(ctx context.Context) ([]*models.User, error) {
+	rows, err := r.sqlite.QueryContext(ctx, `SELECT id, email, created_at FROM users ORDER BY created_at DESC`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+	var users []*models.User
+	for rows.Next() {
+		var u models.User
+		if err := rows.Scan(&u.ID, &u.Email, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, &u)
+	}
+	return users, nil
+}
+

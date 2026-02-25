@@ -43,8 +43,9 @@ type AuthResponse struct {
 	Token     string `json:"token"`
 	ExpiresAt string `json:"expiresAt"`
 	User      struct {
-		ID    string `json:"id"`
-		Email string `json:"email"`
+		ID      string `json:"id"`
+		Email   string `json:"email"`
+		IsAdmin bool   `json:"isAdmin"`
 	} `json:"user"`
 }
 
@@ -83,11 +84,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Token:     tokenString,
 		ExpiresAt: expiresAt.Format("2006-01-02T15:04:05Z07:00"),
 		User: struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
+			ID      string `json:"id"`
+			Email   string `json:"email"`
+			IsAdmin bool   `json:"isAdmin"`
 		}{
-			ID:    user.ID,
-			Email: user.Email,
+			ID:      user.ID,
+			Email:   user.Email,
+			IsAdmin: auth.IsAdminEmail(user.Email),
 		},
 	})
 }
@@ -148,11 +151,13 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Token:     tokenString,
 		ExpiresAt: expiresAt.Format("2006-01-02T15:04:05Z07:00"),
 		User: struct {
-			ID    string `json:"id"`
-			Email string `json:"email"`
+			ID      string `json:"id"`
+			Email   string `json:"email"`
+			IsAdmin bool   `json:"isAdmin"`
 		}{
-			ID:    user.ID,
-			Email: user.Email,
+			ID:      user.ID,
+			Email:   user.Email,
+			IsAdmin: auth.IsAdminEmail(user.Email),
 		},
 	})
 }
@@ -276,8 +281,9 @@ func (h *AuthHandler) Me(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"user": gin.H{
-			"id":    user.ID,
-			"email": user.Email,
+			"id":      user.ID,
+			"email":   user.Email,
+			"isAdmin": auth.IsAdminEmail(user.Email),
 		},
 	})
 }

@@ -36,7 +36,9 @@ func main() {
 	workoutRepo := repository.NewWorkoutRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	sessionRepo := repository.NewSessionRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	userRepo := repository.NewUserRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
+	adminRepo := repository.NewAdminRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	authHandler := handlers.NewAuthHandler(userRepo)
+	adminHandler := handlers.NewAdminHandler(userRepo, adminRepo)
 
 	// Setup Gin router with default middleware (Logger and Recovery)
 	r := gin.Default()
@@ -66,7 +68,13 @@ func main() {
 		api.POST("/auth/reset-password", authHandler.ResetPassword)
 		api.GET("/auth/me", auth.AuthMiddleware(), authHandler.Me)
 
-		// Protected routes - add auth middleware group
+		// Admin routes (auth + admin role required)
+		adminAPI := api.Group("/admin")
+		adminAPI.Use(auth.AuthMiddleware(), auth.AdminMiddleware())
+		{
+			adminAPI.GET("/users", adminHandler.ListUsers)
+			adminAPI.GET("/stats", adminHandler.GetStats)
+		}
 	}
 	authAPI := api.Group("")
 	authAPI.Use(auth.AuthMiddleware())
