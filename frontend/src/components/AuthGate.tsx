@@ -4,6 +4,7 @@ import { LoginPage } from './LoginPage'
 import { RegisterPage } from './RegisterPage'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { ResetPasswordPage } from './ResetPasswordPage'
+import { AdminPanel } from './AdminPanel'
 import App from '../App'
 
 function getResetToken(): string | null {
@@ -12,7 +13,7 @@ function getResetToken(): string | null {
 }
 
 export function AuthGate() {
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, isAdmin, showAdmin, setShowAdmin } = useAuth()
   const [showRegister, setShowRegister] = useState(false)
   const [showForgotPassword, setShowForgotPassword] = useState(false)
   const [resetToken, setResetToken] = useState<string | null>(null)
@@ -64,8 +65,44 @@ export function AuthGate() {
       <LoginPage
         onSwitchToRegister={() => setShowRegister(true)}
         onSwitchToForgotPassword={() => setShowForgotPassword(true)}
+        onSwitchToAdmin={(show) => setShowAdmin(show)}
+        isAdminLogin={showAdmin}
       />
     )
+  }
+
+  if (showAdmin) {
+    if (!isAdmin) {
+      return (
+        <div
+          style={{
+            minHeight: '100vh',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1rem',
+            background: 'var(--bg-primary)',
+          }}
+        >
+          <p style={{ color: 'var(--text-primary)' }}>Access denied. Admin only.</p>
+          <button
+            type="button"
+            onClick={() => setShowAdmin(false)}
+            style={{
+              padding: '0.5rem 1rem',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+            }}
+          >
+            Back to app
+          </button>
+        </div>
+      )
+    }
+    return <AdminPanel onBack={() => setShowAdmin(false)} />
   }
 
   return <App />

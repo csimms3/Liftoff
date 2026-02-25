@@ -31,7 +31,7 @@ import './App.css'
  * - Error handling and loading states
  */
 export default function App() {
-  const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes } = useAuth()
+  const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes, isAdmin, setShowAdmin } = useAuth()
   // API service instance for backend communication
   const apiService = useMemo(() => new ApiService(), [])
   
@@ -610,6 +610,20 @@ export default function App() {
                   <option value={120}>2 hours</option>
                 </select>
               </div>
+              {isAdmin && (
+                <div className="setting-item">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdmin(true)
+                      setIsSettingsOpen(false)
+                    }}
+                    style={{ padding: '0.5rem 1rem', cursor: 'pointer' }}
+                  >
+                    Admin panel
+                  </button>
+                </div>
+              )}
               <div className="setting-item">
                 <label>Notifications</label>
                 <input type="checkbox" defaultChecked />

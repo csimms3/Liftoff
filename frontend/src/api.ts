@@ -267,6 +267,29 @@ export class ApiService {
 		const data = await response.json();
 		return data.highScore || 0;
 	}
+
+	// Admin endpoints
+	async getAdminUsers(): Promise<AdminUser[]> {
+		const data = await this.request<{ users: AdminUser[] }>('/admin/users')
+		return data.users
+	}
+
+	async getAdminStats(): Promise<AdminStats> {
+		return this.request<AdminStats>('/admin/stats')
+	}
+}
+
+export interface AdminUser {
+	id: string
+	email: string
+	created_at: string
+}
+
+export interface AdminStats {
+	total_users: number
+	total_workouts: number
+	total_sessions: number
+	new_users_7d: number
 }
 
 export interface ProgressData {

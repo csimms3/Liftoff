@@ -16,6 +16,7 @@ export function setSessionTimeoutMinutes(minutes: number): void {
 export interface User {
   id: string
   email: string
+  isAdmin?: boolean
 }
 
 export interface AuthState {
@@ -24,6 +25,7 @@ export interface AuthState {
   expiresAt: string | null
   isLoading: boolean
   isAuthenticated: boolean
+  isAdmin: boolean
 }
 
 interface AuthContextType extends AuthState {
@@ -32,6 +34,8 @@ interface AuthContextType extends AuthState {
   logout: () => void
   sessionTimeoutMinutes: number
   setSessionTimeoutMinutes: (minutes: number) => void
+  showAdmin: boolean
+  setShowAdmin: (show: boolean) => void
 }
 
 const AUTH_KEY = 'liftoff-auth'
@@ -75,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [expiresAt, setExpiresAt] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [sessionTimeoutMinutes, setSessionTimeoutState] = useState(getSessionTimeoutMinutes)
+  const [showAdmin, setShowAdmin] = useState(false)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const applyAuth = useCallback((data: StoredAuth | null) => {
@@ -93,6 +98,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const stored = getStoredAuth()
     if (stored) {
       applyAuth(stored)
+      // Refresh user from /auth/me to get isAdmin (and sync any backend changes)
+      fetch(`${API_BASE}/auth/me`, {
+        headers: { Authorization: `Bearer ${stored.token}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.user) {
+            const updated = { ...stored, user: { ...stored.user, ...data.user } }
+            storeAuth(updated)
+            applyAuth(updated)
+          }
+        })
+        .catch(() => {})
     }
     setIsLoading(false)
   }, [applyAuth])
@@ -195,11 +213,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     expiresAt,
     isLoading,
     isAuthenticated: !!token,
+    isAdmin: !!user?.isAdmin,
     login,
     register,
     logout,
     sessionTimeoutMinutes,
     setSessionTimeoutMinutes: updateSessionTimeout,
+    showAdmin,
+    setShowAdmin,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

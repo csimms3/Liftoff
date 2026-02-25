@@ -5,9 +5,11 @@ import './AuthPages.css'
 interface LoginPageProps {
   onSwitchToRegister: () => void
   onSwitchToForgotPassword?: () => void
+  onSwitchToAdmin?: (show: boolean) => void
+  isAdminLogin?: boolean
 }
 
-export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: LoginPageProps) {
+export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onSwitchToAdmin, isAdminLogin }: LoginPageProps) {
   const { login } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -32,7 +34,7 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
     <div className="auth-page">
       <div className="auth-card">
         <h1 className="auth-title">Liftoff</h1>
-        <p className="auth-subtitle">Sign in to track your workouts</p>
+        <p className="auth-subtitle">{isAdminLogin ? 'Admin sign in' : 'Sign in to track your workouts'}</p>
 
         <form onSubmit={handleSubmit} className="auth-form">
           {error && <div className="auth-error">{error}</div>}
@@ -85,10 +87,22 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword }: Logi
         </form>
 
         <p className="auth-switch">
-          Don&apos;t have an account?{' '}
-          <button type="button" className="auth-link" onClick={onSwitchToRegister}>
-            Create account
-          </button>
+          {isAdminLogin ? (
+            <button type="button" className="auth-link" onClick={() => onSwitchToAdmin?.(false)}>
+              Back to main login
+            </button>
+          ) : (
+            <>
+              Don&apos;t have an account?{' '}
+              <button type="button" className="auth-link" onClick={onSwitchToRegister}>
+                Create account
+              </button>
+              {' · '}
+              <button type="button" className="auth-link" onClick={() => onSwitchToAdmin?.(true)}>
+                Admin login
+              </button>
+            </>
+          )}
         </p>
       </div>
     </div>
