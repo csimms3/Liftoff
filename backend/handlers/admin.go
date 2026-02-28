@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"liftoff/backend/models"
 	"liftoff/backend/repository"
 
 	"github.com/gin-gonic/gin"
@@ -25,6 +26,9 @@ func (h *AdminHandler) ListUsers(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to list users"})
 		return
+	}
+	if users == nil {
+		users = []*models.User{}
 	}
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
