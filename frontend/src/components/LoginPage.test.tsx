@@ -17,7 +17,7 @@ describe('LoginPage', () => {
     )
     expect(screen.getByRole('heading', { name: /liftoff/i })).toBeInTheDocument()
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     expect(screen.getByText(/create account/i)).toBeInTheDocument()
   })
