@@ -861,47 +861,47 @@ func (r *WorkoutRepository) GetExerciseTemplates(ctx context.Context) ([]*models
  */
 func (r *WorkoutRepository) getPredefinedExerciseTemplates() []*models.ExerciseTemplate {
 	return []*models.ExerciseTemplate{
-		// Chest exercises
-		{Name: "Barbell Bench Press", Category: "Chest", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 0},
-		{Name: "Dumbbell Bench Press", Category: "Chest", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		// Chest
+		{Name: "Barbell Bench Press", Category: "Chest", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 135},
+		{Name: "Dumbbell Bench Press", Category: "Chest", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 40},
+		{Name: "Incline Dumbbell Press", Category: "Chest", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 35},
 		{Name: "Push-ups", Category: "Chest", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
-		{Name: "Incline Dumbbell Press", Category: "Chest", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
 
-		// Back exercises
+		// Back
 		{Name: "Pull-ups", Category: "Back", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 0},
-		{Name: "Barbell Rows", Category: "Back", DefaultSets: 4, DefaultReps: 10, DefaultWeight: 0},
-		{Name: "Dumbbell Rows", Category: "Back", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
-		{Name: "Lat Pulldowns", Category: "Back", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		{Name: "Barbell Rows", Category: "Back", DefaultSets: 4, DefaultReps: 10, DefaultWeight: 95},
+		{Name: "Dumbbell Rows", Category: "Back", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 40},
+		{Name: "Lat Pulldowns", Category: "Back", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 80},
 
-		// Shoulder exercises
-		{Name: "Overhead Press", Category: "Shoulders", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
-		{Name: "Lateral Raises", Category: "Shoulders", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
-		{Name: "Front Raises", Category: "Shoulders", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
-		{Name: "Dumbbell Shoulder Press", Category: "Shoulders", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
+		// Shoulders
+		{Name: "Overhead Press", Category: "Shoulders", DefaultSets: 3, DefaultReps: 8, DefaultWeight: 65},
+		{Name: "Dumbbell Shoulder Press", Category: "Shoulders", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 30},
+		{Name: "Lateral Raises", Category: "Shoulders", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 15},
+		{Name: "Front Raises", Category: "Shoulders", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 15},
 
-		// Arm exercises
-		{Name: "Bicep Curls", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
+		// Arms
+		{Name: "Bicep Curls", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 25},
+		{Name: "Hammer Curls", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 25},
+		{Name: "Tricep Pushdowns", Category: "Arms", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 40},
 		{Name: "Tricep Dips", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
-		{Name: "Hammer Curls", Category: "Arms", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
-		{Name: "Tricep Pushdowns", Category: "Arms", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
 
-		// Leg exercises
-		{Name: "Barbell Squats", Category: "Legs", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 0},
-		{Name: "Deadlifts", Category: "Legs", DefaultSets: 4, DefaultReps: 6, DefaultWeight: 0},
+		// Legs
+		{Name: "Barbell Squats", Category: "Legs", DefaultSets: 4, DefaultReps: 8, DefaultWeight: 135},
+		{Name: "Deadlifts", Category: "Legs", DefaultSets: 4, DefaultReps: 5, DefaultWeight: 135},
+		{Name: "Leg Press", Category: "Legs", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 180},
 		{Name: "Lunges", Category: "Legs", DefaultSets: 3, DefaultReps: 12, DefaultWeight: 0},
-		{Name: "Leg Press", Category: "Legs", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
 
-		// Core exercises
-		{Name: "Plank", Category: "Core", DefaultSets: 3, DefaultReps: 1, DefaultWeight: 0},
+		// Core
+		{Name: "Plank", Category: "Core", DefaultSets: 3, DefaultReps: 30, DefaultWeight: 0},
 		{Name: "Crunches", Category: "Core", DefaultSets: 3, DefaultReps: 20, DefaultWeight: 0},
 		{Name: "Russian Twists", Category: "Core", DefaultSets: 3, DefaultReps: 20, DefaultWeight: 0},
 		{Name: "Leg Raises", Category: "Core", DefaultSets: 3, DefaultReps: 15, DefaultWeight: 0},
 
-		// Cardio exercises
-		{Name: "Running", Category: "Cardio", DefaultSets: 1, DefaultReps: 1, DefaultWeight: 0},
-		{Name: "Cycling", Category: "Cardio", DefaultSets: 1, DefaultReps: 1, DefaultWeight: 0},
-		{Name: "Jump Rope", Category: "Cardio", DefaultSets: 3, DefaultReps: 1, DefaultWeight: 0},
-		{Name: "Burpees", Category: "Cardio", DefaultSets: 4, DefaultReps: 15, DefaultWeight: 0},
+		// Cardio
+		{Name: "Running", Category: "Cardio", DefaultSets: 1, DefaultReps: 20, DefaultWeight: 0},
+		{Name: "Cycling", Category: "Cardio", DefaultSets: 1, DefaultReps: 30, DefaultWeight: 0},
+		{Name: "Jump Rope", Category: "Cardio", DefaultSets: 5, DefaultReps: 100, DefaultWeight: 0},
+		{Name: "Burpees", Category: "Cardio", DefaultSets: 3, DefaultReps: 10, DefaultWeight: 0},
 	}
 }
 
