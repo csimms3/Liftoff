@@ -54,4 +54,43 @@ describe('LoginPage', () => {
     await user.click(screen.getByText(/forgot password/i))
     expect(onForgot).toHaveBeenCalled()
   })
+
+  it('password field is hidden by default', () => {
+    render(
+      <AuthProvider>
+        <LoginPage onSwitchToRegister={() => {}} />
+      </AuthProvider>
+    )
+    expect(screen.getByLabelText('Password')).toHaveAttribute('type', 'password')
+  })
+
+  it('show password toggle reveals the password', async () => {
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <LoginPage onSwitchToRegister={() => {}} />
+      </AuthProvider>
+    )
+    const input = screen.getByLabelText('Password')
+    const toggle = screen.getByRole('button', { name: /show password/i })
+    expect(input).toHaveAttribute('type', 'password')
+    await user.click(toggle)
+    expect(input).toHaveAttribute('type', 'text')
+    expect(screen.getByRole('button', { name: /hide password/i })).toBeInTheDocument()
+  })
+
+  it('show password toggle can re-hide the password', async () => {
+    const user = userEvent.setup()
+    render(
+      <AuthProvider>
+        <LoginPage onSwitchToRegister={() => {}} />
+      </AuthProvider>
+    )
+    const input = screen.getByLabelText('Password')
+    const toggle = screen.getByRole('button', { name: /show password/i })
+    await user.click(toggle)
+    expect(input).toHaveAttribute('type', 'text')
+    await user.click(screen.getByRole('button', { name: /hide password/i }))
+    expect(input).toHaveAttribute('type', 'password')
+  })
 })
