@@ -1,6 +1,6 @@
 # Liftoff - Workout Tracking Application
 
-A full-stack workout tracking application built with Go backend and React frontend, designed to help users create, track, and manage their fitness routines.
+A full-stack workout tracking application designed to help users create, track, and manage their fitness routines.
 
 ## Features
 
