@@ -3,41 +3,41 @@
    ========================================================================== */
 
 :root {
-  /* Light theme colors */
-  --bg-primary: #f8fafc;
+  /* Light theme — neutral white/gray */
+  --bg-primary: #f6f6f6;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f1f5f9;
-  --text-primary: #1e293b;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
-  --border-color: #e2e8f0;
+  --bg-tertiary: #efefef;
+  --text-primary: #111111;
+  --text-secondary: #6b7280;
+  --text-muted: #9ca3af;
+  --border-color: #e2e2e2;
   --shadow-color: rgba(0, 0, 0, 0.05);
-  --accent-color: #3b82f6;
+  --accent-color: #2563eb;
   --accent-hover: #1d4ed8;
-  --success-color: #10b981;
-  --danger-color: #ef4444;
-  --warning-color: #f59e0b;
-  --button-primary: #3b82f6;
-  --button-primary-hover: #1d4ed8;
+  --success-color: #16a34a;
+  --danger-color: #dc2626;
+  --warning-color: #d97706;
+  --button-primary: #111111;
+  --button-primary-hover: #000000;
 }
 
 [data-theme="dark"] {
-  /* Dark theme colors */
-  --bg-primary: #0f172a;
-  --bg-secondary: #1e293b;
-  --bg-tertiary: #334155;
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #64748b;
-  --border-color: #334155;
-  --shadow-color: rgba(0, 0, 0, 0.3);
+  /* Dark theme — true dark neutral */
+  --bg-primary: #0c0c0c;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #252525;
+  --text-primary: #f2f2f2;
+  --text-secondary: #a0a0a0;
+  --text-muted: #555555;
+  --border-color: #303030;
+  --shadow-color: rgba(0, 0, 0, 0.4);
   --accent-color: #60a5fa;
   --accent-hover: #93c5fd;
-  --success-color: #34d399;
+  --success-color: #22c55e;
   --danger-color: #f87171;
   --warning-color: #fbbf24;
-  --button-primary: #1e40af;
-  --button-primary-hover: #1d4ed8;
+  --button-primary: #f2f2f2;
+  --button-primary-hover: #ffffff;
 }
 
 /* ==========================================================================
@@ -57,7 +57,7 @@ html, body {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   line-height: 1.6;
   color: var(--text-primary);
   background-color: var(--bg-primary);
@@ -114,18 +114,16 @@ body {
 }
 
 .header-left h1 {
-  font-size: 2.5rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--accent-color) 0%, var(--accent-hover) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  margin-bottom: 0.5rem;
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+  margin-bottom: 0.25rem;
 }
 
 .header-left p {
   color: var(--text-secondary);
-  font-size: 1.1rem;
+  font-size: 0.875rem;
   margin-bottom: 0;
 }
 
@@ -348,36 +346,43 @@ body {
 .app-nav {
   display: flex;
   justify-content: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
   margin-top: 1rem;
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  padding: 0.25rem;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .nav-button {
-  padding: 0.75rem 1.5rem;
-  border: 2px solid var(--border-color);
-  background: var(--bg-secondary);
+  padding: 0.5rem 1.125rem;
+  border: none;
+  background: transparent;
   color: var(--text-secondary);
-  border-radius: 12px;
-  font-weight: 600;
+  border-radius: 9px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.9rem;
+  transition: all 0.15s ease;
+  font-size: 0.875rem;
+  white-space: nowrap;
 }
 
 .nav-button:hover:not(:disabled) {
-  border-color: var(--accent-color);
-  color: var(--accent-color);
-  transform: translateY(-1px);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
 }
 
 .nav-button.active {
-  background: var(--accent-color);
-  color: white;
-  border-color: var(--accent-color);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .nav-button:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
@@ -460,24 +465,27 @@ input::placeholder, textarea::placeholder {
    ========================================================================== */
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--button-primary) 0%, var(--button-primary-hover) 100%);
+  background: var(--button-primary);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 12px;
-  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.9rem;
+  transition: background 0.15s ease, opacity 0.15s ease;
+  font-size: 0.875rem;
+}
+
+[data-theme="dark"] .btn-primary {
+  color: #111111;
 }
 
 .btn-primary:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px var(--shadow-color);
+  background: var(--button-primary-hover);
 }
 
 .btn-primary:disabled {
-  opacity: 0.6;
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
@@ -499,19 +507,18 @@ input::placeholder, textarea::placeholder {
 }
 
 .btn-danger {
-  background: linear-gradient(135deg, var(--danger-color) 0%, #dc2626 100%);
+  background: var(--danger-color);
   color: white;
   border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 12px;
-  font-weight: 600;
+  padding: 0.625rem 1.25rem;
+  border-radius: 8px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: opacity 0.15s ease;
 }
 
 .btn-danger:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px var(--shadow-color);
+  opacity: 0.85;
 }
 
 .btn-delete {
@@ -605,17 +612,16 @@ input::placeholder, textarea::placeholder {
 
 .workout-card {
   background: var(--bg-secondary);
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.5rem;
-  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1.25rem;
+  transition: box-shadow 0.15s ease, border-color 0.15s ease;
   position: relative;
 }
 
 .workout-card:hover {
-  border-color: var(--accent-color);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px var(--shadow-color);
+  border-color: #c0c0c0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
 }
 
 .workout-header {
@@ -655,16 +661,15 @@ input::placeholder, textarea::placeholder {
 
 .exercise-card {
   background: var(--bg-tertiary);
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1.25rem;
-  transition: all 0.2s ease;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1rem;
+  transition: border-color 0.15s ease;
   position: relative;
 }
 
 .exercise-card:hover {
-  border-color: var(--accent-color);
-  background: var(--bg-secondary);
+  border-color: #c0c0c0;
 }
 
 .exercise-header {
@@ -1260,14 +1265,13 @@ input::placeholder, textarea::placeholder {
 
 /* Results Summary */
 .workout-library .results-summary {
-  color: rgba(255, 255, 255, 0.9);
-  font-size: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
   font-weight: 500;
   margin-bottom: 2rem;
-  padding: 1rem 0;
-  border-bottom: 2px solid rgba(255, 255, 255, 0.2);
-  text-align: center;
-  letter-spacing: 0.5px;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border-color);
+  text-align: left;
 }
 
 /* Exercise Grid */
@@ -1296,10 +1300,11 @@ input::placeholder, textarea::placeholder {
   top: 0;
   left: 0;
   right: 0;
-  height: 4px;
-  background: linear-gradient(90deg, #667eea, #764ba2);
+  height: 3px;
+  background: var(--accent-color);
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.2s ease;
+  border-radius: 16px 16px 0 0;
 }
 
 .workout-library .bg-white:hover {
@@ -1360,29 +1365,25 @@ input::placeholder, textarea::placeholder {
 
 /* Quick Add Button */
 .workout-library .bg-blue-600 {
-  background: linear-gradient(135deg, var(--button-primary) 0%, var(--button-primary-hover) 100%);
+  background: var(--button-primary);
   color: white;
   border: none;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 10px 20px;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  transition: opacity 0.15s ease;
   cursor: pointer;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
-.workout-library .bg-blue-600:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+[data-theme="dark"] .workout-library .bg-blue-600 {
+  color: #111111;
 }
 
-.workout-library .bg-blue-600:active {
-  transform: translateY(0);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+.workout-library .bg-blue-600:hover {
+  opacity: 0.85;
 }
 
 /* Loading and Error States */
