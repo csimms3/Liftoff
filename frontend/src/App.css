@@ -1897,10 +1897,12 @@ input:disabled {
 }
 
 .footer-section h4 {
-  color: var(--accent-color);
-  font-size: 1.1rem;
+  color: var(--text-primary);
+  font-size: 0.875rem;
   font-weight: 600;
   margin-bottom: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .footer-section p {
