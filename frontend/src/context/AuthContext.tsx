@@ -30,6 +30,7 @@ export interface AuthState {
 
 interface AuthContextType extends AuthState {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
+  loginWithToken: (token: string, user: User, expiresAt: string) => void
   register: (email: string, password: string) => Promise<void>
   logout: () => void
   sessionTimeoutMinutes: number
@@ -145,6 +146,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     applyAuth(authData)
   }, [applyAuth])
 
+  const loginWithToken = useCallback(
+    (token: string, user: User, expiresAt: string) => {
+      const authData: StoredAuth = { token, user, expiresAt }
+      storeAuth(authData)
+      applyAuth(authData)
+    },
+    [applyAuth]
+  )
+
   const register = useCallback(async (email: string, password: string) => {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
@@ -215,6 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated: !!token,
     isAdmin: !!user?.isAdmin || user?.email?.toLowerCase() === 'admin@liftoff.local',
     login,
+    loginWithToken,
     register,
     logout,
     sessionTimeoutMinutes,

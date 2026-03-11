@@ -10,13 +10,29 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onSwitchToAdmin, isAdminLogin }: LoginPageProps) {
-  const { login } = useAuth()
+  const { login, loginWithToken } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showDevLogin, setShowDevLogin] = useState(false)
+  const [devTokenJson, setDevTokenJson] = useState('')
+
+  const handleDevLogin = () => {
+    setError(null)
+    try {
+      const data = JSON.parse(devTokenJson)
+      if (data.token && data.user && data.expiresAt) {
+        loginWithToken(data.token, data.user, data.expiresAt)
+      } else {
+        setError('Invalid format: need token, user, expiresAt')
+      }
+    } catch {
+      setError('Invalid JSON')
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -108,6 +124,31 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onSwit
           </button>
         </form>
 
+        {showDevLogin && (
+          <div className="auth-dev-login" style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: '0.85rem' }}>
+            <p style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Paste full API login response (from curl):</p>
+            <textarea
+              value={devTokenJson}
+              onChange={(e) => setDevTokenJson(e.target.value)}
+              placeholder='{"token":"eyJ...","expiresAt":"...","user":{...}}'
+              rows={4}
+              style={{ width: '100%', fontFamily: 'monospace', fontSize: '0.75rem', padding: '0.5rem', marginBottom: '0.5rem' }}
+            />
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button type="button" className="auth-button" onClick={handleDevLogin} style={{ padding: '0.4rem 0.8rem' }}>
+                Login with token
+              </button>
+              <button type="button" className="auth-link" onClick={() => setShowDevLogin(false)}>
+                Hide
+              </button>
+            </div>
+          </div>
+        )}
+        {!showDevLogin && (
+          <button type="button" className="auth-link auth-link-small" onClick={() => setShowDevLogin(true)} style={{ marginTop: '0.5rem', display: 'block' }}>
+            Dev: login with API token
+          </button>
+        )}
         <p className="auth-switch">
           {isAdminLogin ? (
             <button type="button" className="auth-link" onClick={() => onSwitchToAdmin?.(false)}>
