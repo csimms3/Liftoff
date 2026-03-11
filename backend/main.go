@@ -217,6 +217,29 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Routine deleted successfully"})
 		})
 
+		authAPI.GET("/routine-templates", func(c *gin.Context) {
+			templates := routineRepo.GetRoutineTemplates()
+			list := make([]gin.H, len(templates))
+			for i, t := range templates {
+				list[i] = gin.H{"id": t.ID, "name": t.Name, "description": t.Description, "workout_count": len(t.Workouts)}
+			}
+			c.JSON(http.StatusOK, list)
+		})
+
+		authAPI.POST("/routine-templates/:templateId/create", func(c *gin.Context) {
+			var input struct {
+				Name string `json:"name"`
+			}
+			_ = c.ShouldBindJSON(&input)
+			routine, err := routineRepo.CreateFromTemplate(c.Request.Context(), userID(c), c.Param("templateId"), input.Name)
+			if err != nil {
+				log.Printf("Error creating from template: %v", err)
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, routine)
+		})
+
 		// Workout template routes
 		api.GET("/workout-templates", func(c *gin.Context) {
 			templates, err := workoutRepo.GetWorkoutTemplates(c.Request.Context())

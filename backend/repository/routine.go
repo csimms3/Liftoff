@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// RoutineTemplateWorkout defines a workout within a routine template
+type RoutineTemplateWorkout struct {
+	Name      string
+	Exercises []models.Exercise
+}
+
+// RoutineTemplate defines a predefined multi-workout routine
+type RoutineTemplate struct {
+	ID          string
+	Name        string
+	Description string
+	Workouts    []RoutineTemplateWorkout
+}
+
 type RoutineRepository struct {
 	db        *pgxpool.Pool
 	sqlite    *sql.DB
@@ -273,4 +287,187 @@ func (r *RoutineRepository) SetRoutineWorkouts(ctx context.Context, userID, rout
 		}
 	}
 	return nil
+}
+
+func (r *RoutineRepository) GetRoutineTemplates() []RoutineTemplate {
+	return getRoutineTemplates()
+}
+
+func (r *RoutineRepository) CreateFromTemplate(ctx context.Context, userID, templateID string, routineName string) (*models.Routine, error) {
+	templates := getRoutineTemplates()
+	var tpl *RoutineTemplate
+	for i := range templates {
+		if templates[i].ID == templateID {
+			tpl = &templates[i]
+			break
+		}
+	}
+	if tpl == nil {
+		return nil, fmt.Errorf("template not found: %s", templateID)
+	}
+	name := routineName
+	if name == "" {
+		name = tpl.Name
+	}
+
+	var workoutIDs []string
+	for _, w := range tpl.Workouts {
+		workout, err := r.workout.CreateWorkout(ctx, userID, w.Name)
+		if err != nil {
+			return nil, fmt.Errorf("create workout %s: %w", w.Name, err)
+		}
+		for _, ex := range w.Exercises {
+			ex.WorkoutID = workout.ID
+			if err := r.workout.CreateExercise(ctx, userID, &ex); err != nil {
+				return nil, fmt.Errorf("create exercise %s: %w", ex.Name, err)
+			}
+		}
+		workoutIDs = append(workoutIDs, workout.ID)
+	}
+
+	routine, err := r.CreateRoutine(ctx, userID, name, tpl.Description)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.SetRoutineWorkouts(ctx, userID, routine.ID, workoutIDs); err != nil {
+		return nil, err
+	}
+	return r.GetRoutine(ctx, userID, routine.ID)
+}
+
+func getRoutineTemplates() []RoutineTemplate {
+	return []RoutineTemplate{
+		{
+			ID:          "push-pull-legs",
+			Name:        "Push Pull Legs",
+			Description: "Classic 3-day split: Push (chest, shoulders, triceps), Pull (back, biceps), Legs",
+			Workouts: []RoutineTemplateWorkout{
+				{
+					Name: "Push",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Bench Press", Sets: 4, Reps: 8, Weight: 135},
+						{Name: "Overhead Press", Sets: 3, Reps: 8, Weight: 65},
+						{Name: "Incline Dumbbell Press", Sets: 3, Reps: 10, Weight: 35},
+						{Name: "Lateral Raises", Sets: 3, Reps: 15, Weight: 15},
+						{Name: "Tricep Pushdowns", Sets: 3, Reps: 15, Weight: 40},
+					},
+				},
+				{
+					Name: "Pull",
+					Exercises: []models.Exercise{
+						{Name: "Pull-ups", Sets: 4, Reps: 8, Weight: 0},
+						{Name: "Barbell Rows", Sets: 4, Reps: 10, Weight: 95},
+						{Name: "Lat Pulldowns", Sets: 3, Reps: 12, Weight: 80},
+						{Name: "Dumbbell Rows", Sets: 3, Reps: 12, Weight: 40},
+						{Name: "Bicep Curls", Sets: 3, Reps: 12, Weight: 25},
+					},
+				},
+				{
+					Name: "Legs",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Squats", Sets: 4, Reps: 8, Weight: 135},
+						{Name: "Deadlifts", Sets: 4, Reps: 5, Weight: 135},
+						{Name: "Leg Press", Sets: 3, Reps: 10, Weight: 180},
+						{Name: "Lunges", Sets: 3, Reps: 12, Weight: 0},
+						{Name: "Leg Raises", Sets: 3, Reps: 15, Weight: 0},
+					},
+				},
+			},
+		},
+		{
+			ID:          "upper-lower",
+			Name:        "Upper Lower",
+			Description: "2-day split: Upper body and Lower body",
+			Workouts: []RoutineTemplateWorkout{
+				{
+					Name: "Upper",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Bench Press", Sets: 4, Reps: 8, Weight: 135},
+						{Name: "Barbell Rows", Sets: 4, Reps: 10, Weight: 95},
+						{Name: "Overhead Press", Sets: 3, Reps: 8, Weight: 65},
+						{Name: "Pull-ups", Sets: 3, Reps: 8, Weight: 0},
+						{Name: "Bicep Curls", Sets: 3, Reps: 12, Weight: 25},
+						{Name: "Tricep Pushdowns", Sets: 3, Reps: 15, Weight: 40},
+					},
+				},
+				{
+					Name: "Lower",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Squats", Sets: 4, Reps: 8, Weight: 135},
+						{Name: "Deadlifts", Sets: 4, Reps: 5, Weight: 135},
+						{Name: "Leg Press", Sets: 3, Reps: 10, Weight: 180},
+						{Name: "Lunges", Sets: 3, Reps: 12, Weight: 0},
+						{Name: "Leg Raises", Sets: 3, Reps: 15, Weight: 0},
+					},
+				},
+			},
+		},
+		{
+			ID:          "upper-lower-4day",
+			Name:        "Upper Lower 4-Day",
+			Description: "4-day variation: Upper A, Lower A, Upper B, Lower B with different exercises",
+			Workouts: []RoutineTemplateWorkout{
+				{
+					Name: "Upper A",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Bench Press", Sets: 4, Reps: 8, Weight: 135},
+						{Name: "Barbell Rows", Sets: 4, Reps: 10, Weight: 95},
+						{Name: "Overhead Press", Sets: 3, Reps: 8, Weight: 65},
+						{Name: "Lat Pulldowns", Sets: 3, Reps: 12, Weight: 80},
+						{Name: "Bicep Curls", Sets: 3, Reps: 12, Weight: 25},
+						{Name: "Tricep Pushdowns", Sets: 3, Reps: 15, Weight: 40},
+					},
+				},
+				{
+					Name: "Lower A",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Squats", Sets: 4, Reps: 8, Weight: 135},
+						{Name: "Romanian Deadlifts", Sets: 3, Reps: 10, Weight: 95},
+						{Name: "Leg Press", Sets: 3, Reps: 10, Weight: 180},
+						{Name: "Leg Curls", Sets: 3, Reps: 12, Weight: 0},
+						{Name: "Calf Raises", Sets: 3, Reps: 15, Weight: 0},
+					},
+				},
+				{
+					Name: "Upper B",
+					Exercises: []models.Exercise{
+						{Name: "Incline Dumbbell Press", Sets: 4, Reps: 10, Weight: 35},
+						{Name: "Dumbbell Rows", Sets: 4, Reps: 12, Weight: 40},
+						{Name: "Dumbbell Shoulder Press", Sets: 3, Reps: 10, Weight: 30},
+						{Name: "Pull-ups", Sets: 3, Reps: 8, Weight: 0},
+						{Name: "Hammer Curls", Sets: 3, Reps: 12, Weight: 25},
+						{Name: "Tricep Dips", Sets: 3, Reps: 12, Weight: 0},
+					},
+				},
+				{
+					Name: "Lower B",
+					Exercises: []models.Exercise{
+						{Name: "Deadlifts", Sets: 4, Reps: 5, Weight: 135},
+						{Name: "Front Squats", Sets: 3, Reps: 8, Weight: 95},
+						{Name: "Leg Press", Sets: 3, Reps: 12, Weight: 180},
+						{Name: "Lunges", Sets: 3, Reps: 12, Weight: 0},
+						{Name: "Leg Raises", Sets: 3, Reps: 15, Weight: 0},
+					},
+				},
+			},
+		},
+		{
+			ID:          "full-body",
+			Name:        "Full Body",
+			Description: "Single full-body workout for 3x per week",
+			Workouts: []RoutineTemplateWorkout{
+				{
+					Name: "Full Body",
+					Exercises: []models.Exercise{
+						{Name: "Barbell Squats", Sets: 3, Reps: 8, Weight: 135},
+						{Name: "Barbell Bench Press", Sets: 3, Reps: 8, Weight: 135},
+						{Name: "Barbell Rows", Sets: 3, Reps: 10, Weight: 95},
+						{Name: "Overhead Press", Sets: 3, Reps: 8, Weight: 65},
+						{Name: "Deadlifts", Sets: 3, Reps: 5, Weight: 135},
+						{Name: "Plank", Sets: 3, Reps: 30, Weight: 0},
+					},
+				},
+			},
+		},
+	}
 }
