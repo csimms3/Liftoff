@@ -197,6 +197,24 @@ func createSQLiteTables(db *sql.DB) error {
 			expires_at DATETIME NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
+		`CREATE TABLE IF NOT EXISTS routines (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			description TEXT DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_routines_user_id ON routines(user_id)`,
+		`CREATE TABLE IF NOT EXISTS routine_workouts (
+			id TEXT PRIMARY KEY,
+			routine_id TEXT NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+			workout_id TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+			slot_order INTEGER NOT NULL DEFAULT 1,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_routine_workouts_routine_id ON routine_workouts(routine_id)`,
 	}
 
 	for _, query := range queries {

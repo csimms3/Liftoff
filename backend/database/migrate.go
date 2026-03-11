@@ -24,8 +24,11 @@ func MigrateSQLite(db *sql.DB) error {
 		return fmt.Errorf("failed to check schema: %w", err)
 	}
 	if count > 0 {
-		// Already migrated - ensure admin user exists (may be missing if migration was skipped)
-		return ensureAdminUserSQLite(db)
+		// Already migrated - ensure admin user and routines tables exist
+		if err := ensureAdminUserSQLite(db); err != nil {
+			return err
+		}
+		return ensureRoutinesTablesSQLite(db)
 	}
 
 	log.Println("Running migration: add user_id to workouts, sessions, dino_game_scores")
@@ -52,7 +55,39 @@ func MigrateSQLite(db *sql.DB) error {
 	}
 
 	log.Println("Migration completed: existing data assigned to admin@liftoff.local (password: Admin123!)")
-	return nil
+	return ensureRoutinesTablesSQLite(db)
+}
+
+// ensureRoutinesTablesSQLite creates routines and routine_workouts tables if they don't exist
+func ensureRoutinesTablesSQLite(db *sql.DB) error {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS routines (
+		id TEXT PRIMARY KEY,
+		user_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`)
+	if err != nil {
+		return fmt.Errorf("create routines: %w", err)
+	}
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_routines_user_id ON routines(user_id)`)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS routine_workouts (
+		id TEXT PRIMARY KEY,
+		routine_id TEXT NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+		workout_id TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+		slot_order INTEGER NOT NULL DEFAULT 1,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	)`)
+	if err != nil {
+		return fmt.Errorf("create routine_workouts: %w", err)
+	}
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_routine_workouts_routine_id ON routine_workouts(routine_id)`)
+	return err
 }
 
 // ensureAdminUserSQLite creates or updates admin user with correct password
@@ -83,8 +118,11 @@ func MigratePostgres(pool *pgxpool.Pool) error {
 		return err
 	}
 	if exists {
-		// Already migrated - ensure admin user exists
-		return ensureAdminUserPostgres(ctx, pool)
+		// Already migrated - ensure admin user and routines tables exist
+		if err := ensureAdminUserPostgres(ctx, pool); err != nil {
+			return err
+		}
+		return ensureRoutinesTablesPostgres(ctx, pool)
 	}
 
 	log.Println("Running migration: add user_id to workouts, sessions, dino_game_scores")
@@ -130,7 +168,39 @@ func MigratePostgres(pool *pgxpool.Pool) error {
 	}
 
 	log.Println("Migration completed: existing data assigned to admin@liftoff.local (password: Admin123!)")
-	return nil
+	return ensureRoutinesTablesPostgres(ctx, pool)
+}
+
+// ensureRoutinesTablesPostgres creates routines and routine_workouts tables if they don't exist
+func ensureRoutinesTablesPostgres(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS routines (
+		id VARCHAR(36) PRIMARY KEY,
+		user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		name VARCHAR(255) NOT NULL,
+		description TEXT DEFAULT '',
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+	)`)
+	if err != nil {
+		return fmt.Errorf("create routines: %w", err)
+	}
+	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_routines_user_id ON routines(user_id)`)
+	if err != nil {
+		return err
+	}
+	_, err = pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS routine_workouts (
+		id VARCHAR(36) PRIMARY KEY,
+		routine_id VARCHAR(36) NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
+		workout_id VARCHAR(36) NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
+		slot_order INTEGER NOT NULL DEFAULT 1,
+		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+	)`)
+	if err != nil {
+		return fmt.Errorf("create routine_workouts: %w", err)
+	}
+	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_routine_workouts_routine_id ON routine_workouts(routine_id)`)
+	return err
 }
 
 // ensureAdminUserPostgres creates or updates admin user with correct password
