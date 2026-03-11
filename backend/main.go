@@ -34,6 +34,7 @@ func main() {
 
 	// Initialize repositories for data access
 	workoutRepo := repository.NewWorkoutRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
+	routineRepo := repository.NewRoutineRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite(), workoutRepo)
 	sessionRepo := repository.NewSessionRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	userRepo := repository.NewUserRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
 	adminRepo := repository.NewAdminRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
@@ -128,6 +129,92 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Workout deleted successfully"})
+		})
+
+		// Routine management endpoints
+		authAPI.GET("/routines", func(c *gin.Context) {
+			routines, err := routineRepo.GetRoutines(c.Request.Context(), userID(c))
+			if err != nil {
+				log.Printf("Error fetching routines: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch routines"})
+				return
+			}
+			if routines == nil {
+				routines = []*models.Routine{}
+			}
+			c.JSON(http.StatusOK, routines)
+		})
+
+		authAPI.POST("/routines", func(c *gin.Context) {
+			var input struct {
+				Name        string   `json:"name" binding:"required"`
+				Description string   `json:"description"`
+				WorkoutIDs  []string `json:"workout_ids"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Routine name is required"})
+				return
+			}
+			routine, err := routineRepo.CreateRoutine(c.Request.Context(), userID(c), input.Name, input.Description)
+			if err != nil {
+				log.Printf("Error creating routine: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create routine"})
+				return
+			}
+			if len(input.WorkoutIDs) > 0 {
+				_ = routineRepo.SetRoutineWorkouts(c.Request.Context(), userID(c), routine.ID, input.WorkoutIDs)
+			}
+			routine, _ = routineRepo.GetRoutine(c.Request.Context(), userID(c), routine.ID)
+			c.JSON(http.StatusCreated, routine)
+		})
+
+		authAPI.GET("/routines/:id", func(c *gin.Context) {
+			routine, err := routineRepo.GetRoutine(c.Request.Context(), userID(c), c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Routine not found"})
+				return
+			}
+			c.JSON(http.StatusOK, routine)
+		})
+
+		authAPI.PUT("/routines/:id", func(c *gin.Context) {
+			var input struct {
+				Name        string   `json:"name"`
+				Description string   `json:"description"`
+				WorkoutIDs  []string `json:"workout_ids"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request"})
+				return
+			}
+			routine, err := routineRepo.GetRoutine(c.Request.Context(), userID(c), c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Routine not found"})
+				return
+			}
+			name, desc := routine.Name, routine.Description
+			if input.Name != "" {
+				name = input.Name
+			}
+			if input.Description != "" {
+				desc = input.Description
+			}
+			_ = routineRepo.UpdateRoutine(c.Request.Context(), userID(c), routine.ID, name, desc)
+			if input.WorkoutIDs != nil {
+				_ = routineRepo.SetRoutineWorkouts(c.Request.Context(), userID(c), routine.ID, input.WorkoutIDs)
+			}
+			routine, _ = routineRepo.GetRoutine(c.Request.Context(), userID(c), routine.ID)
+			c.JSON(http.StatusOK, routine)
+		})
+
+		authAPI.DELETE("/routines/:id", func(c *gin.Context) {
+			err := routineRepo.DeleteRoutine(c.Request.Context(), userID(c), c.Param("id"))
+			if err != nil {
+				log.Printf("Error deleting routine: %v", err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete routine"})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"message": "Routine deleted successfully"})
 		})
 
 		// Workout template routes
