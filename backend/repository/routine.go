@@ -106,6 +106,9 @@ func (r *RoutineRepository) getRoutinesPostgres(ctx context.Context, userID stri
 	}
 	for _, routine := range routines {
 		routine.Workouts, _ = r.getRoutineWorkoutsPostgres(ctx, routine.ID)
+		for _, rw := range routine.Workouts {
+			rw.Workout, _ = r.workout.GetWorkout(ctx, userID, rw.WorkoutID)
+		}
 	}
 	return routines, nil
 }
@@ -129,6 +132,9 @@ func (r *RoutineRepository) getRoutinesSQLite(ctx context.Context, userID string
 	}
 	for _, routine := range routines {
 		routine.Workouts, _ = r.getRoutineWorkoutsSQLite(ctx, routine.ID)
+		for _, rw := range routine.Workouts {
+			rw.Workout, _ = r.workout.GetWorkout(ctx, userID, rw.WorkoutID)
+		}
 	}
 	return routines, nil
 }

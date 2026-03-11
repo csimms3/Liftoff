@@ -4,14 +4,14 @@ import { SetLoggingForm } from './components/SetLoggingForm'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
 import { useAuth } from './context/AuthContext'
-import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet } from './api'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet, type Routine, type RoutineTemplate } from './api'
 import './App.css'
 
 export default function App() {
   const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes, isAdmin, setShowAdmin } = useAuth()
   const apiService = useMemo(() => new ApiService(), [])
   
-  const [view, setView] = useState<'workouts' | 'session' | 'progress' | 'library'>('workouts');
+  const [view, setView] = useState<'workouts' | 'routines' | 'session' | 'progress' | 'library'>('workouts');
   const [workouts, setWorkouts] = useState<Workout[]>([]);
   const [currentWorkout, setCurrentWorkout] = useState<Workout | null>(null);
   const [activeSession, setActiveSession] = useState<WorkoutSession | null>(null);
@@ -30,6 +30,8 @@ export default function App() {
   
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
   const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
+  const [routines, setRoutines] = useState<Routine[]>([]);
+  const [routineTemplates, setRoutineTemplates] = useState<RoutineTemplate[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDinoGameOpen, setIsDinoGameOpen] = useState(false);
   
@@ -164,11 +166,31 @@ export default function App() {
     }
   }, [apiService]);
 
+  const loadRoutines = useCallback(async () => {
+    try {
+      const data = await apiService.getRoutines();
+      setRoutines(Array.isArray(data) ? data : []);
+    } catch {
+      setRoutines([]);
+    }
+  }, [apiService]);
+
+  const loadRoutineTemplates = useCallback(async () => {
+    try {
+      const data = await apiService.getRoutineTemplates();
+      setRoutineTemplates(Array.isArray(data) ? data : []);
+    } catch {
+      setRoutineTemplates([]);
+    }
+  }, [apiService]);
+
   useEffect(() => {
     const loadData = async () => {
       try {
         await Promise.all([
           loadWorkouts(),
+          loadRoutines(),
+          loadRoutineTemplates(),
           loadActiveSession(),
           loadExerciseTemplates(),
           loadProgressData(),
@@ -179,7 +201,7 @@ export default function App() {
       }
     }
     loadData()
-  }, [loadWorkouts, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
+  }, [loadWorkouts, loadRoutines, loadRoutineTemplates, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
 
   const createWorkout = async () => {
     if (!newWorkoutName.trim()) return
@@ -271,6 +293,7 @@ export default function App() {
       setActiveSession(session)
       setCurrentWorkout(workout)
       await loadActiveSession()
+      setView('session')
     } catch (error) {
       console.error('Failed to start workout session:', error)
       setError('Failed to start workout session')
@@ -352,6 +375,33 @@ export default function App() {
         }
       } catch {
         setError('Failed to delete workout')
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  const createRoutineFromTemplate = async (templateId: string, name?: string) => {
+    try {
+      setLoading(true)
+      await apiService.createRoutineFromTemplate(templateId, name)
+      await Promise.all([loadRoutines(), loadWorkouts()])
+      setError(null)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create routine')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteRoutine = async (routineId: string) => {
+    if (window.confirm('Delete this routine? Workouts will remain.')) {
+      try {
+        setLoading(true)
+        await apiService.deleteRoutine(routineId)
+        setRoutines(routines.filter(r => r.id !== routineId))
+      } catch {
+        setError('Failed to delete routine')
       } finally {
         setLoading(false)
       }
@@ -535,6 +585,12 @@ export default function App() {
             Workouts
           </button>
           <button 
+            className={`nav-button ${view === 'routines' ? 'active' : ''}`}
+            onClick={() => setView('routines')}
+          >
+            Routines
+          </button>
+          <button 
             className={`nav-button ${view === 'session' ? 'active' : ''}`}
             onClick={() => setView('session')}
             disabled={!activeSession}
@@ -561,6 +617,83 @@ export default function App() {
           <div className="error-banner">
             <p>{error}</p>
             <button onClick={() => setError(null)}>×</button>
+          </div>
+        )}
+
+        {view === 'routines' && (
+          <div className="routines-view">
+            <div className="routines-section">
+              <h2>Routine Templates</h2>
+              <p className="section-desc">Create a routine from a template. Workouts and exercises are created for you.</p>
+              {loading ? (
+                <div className="loading-state"><p>Loading templates...</p></div>
+              ) : routineTemplates.length === 0 ? (
+                <p className="empty-state">No templates available.</p>
+              ) : (
+                <div className="template-cards">
+                  {routineTemplates.map(tpl => (
+                    <div key={tpl.id} className="template-card">
+                      <h3>{tpl.name}</h3>
+                      <p className="template-desc">{tpl.description}</p>
+                      <p className="template-meta">{tpl.workout_count} workout{tpl.workout_count !== 1 ? 's' : ''}</p>
+                      <button
+                        className="btn-primary"
+                        onClick={() => createRoutineFromTemplate(tpl.id)}
+                        disabled={loading}
+                      >
+                        Create Routine
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="routines-section">
+              <h2>Your Routines</h2>
+              {loading ? (
+                <div className="loading-state"><p>Loading routines...</p></div>
+              ) : routines.length === 0 ? (
+                <p className="empty-state">No routines yet. Create one from a template above.</p>
+              ) : (
+                <div className="routine-cards">
+                  {routines.map(routine => (
+                    <div key={routine.id} className="routine-card">
+                      <div className="routine-header">
+                        <h3>{routine.name}</h3>
+                        <button
+                          className="btn-delete"
+                          onClick={() => deleteRoutine(routine.id)}
+                          disabled={loading}
+                        >
+                          ×
+                        </button>
+                      </div>
+                      {routine.description && (
+                        <p className="routine-desc">{routine.description}</p>
+                      )}
+                      <div className="routine-workouts">
+                        {routine.workouts?.sort((a, b) => a.slot_order - b.slot_order).map((rw, idx) => {
+                          const workout = rw.workout ?? workouts.find(w => w.id === rw.workout_id)
+                          return (
+                            <div key={rw.id} className="routine-workout-row">
+                              <span className="slot-label">Day {idx + 1}:</span>
+                              <span className="workout-name">{workout?.name ?? 'Workout'}</span>
+                              <button
+                                className="btn-primary btn-sm"
+                                onClick={() => workout && startWorkout(workout)}
+                                disabled={loading || !workout}
+                              >
+                                {activeSession?.workout?.id === workout?.id ? 'Continue' : 'Start'}
+                              </button>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -903,6 +1036,7 @@ export default function App() {
             <h4>Quick Links</h4>
             <ul>
               <li><button onClick={() => setView('workouts')}>Workouts</button></li>
+              <li><button onClick={() => setView('routines')}>Routines</button></li>
               <li><button onClick={() => setView('progress')}>Progress</button></li>
               <li><button onClick={() => setView('library')}>Library</button></li>
             </ul>

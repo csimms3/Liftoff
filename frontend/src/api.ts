@@ -268,6 +268,37 @@ export class ApiService {
 		return data.highScore || 0;
 	}
 
+	// Routine endpoints
+	async getRoutines(): Promise<Routine[]> {
+		return this.request<Routine[]>('/routines')
+	}
+
+	async getRoutine(id: string): Promise<Routine> {
+		return this.request<Routine>(`/routines/${id}`)
+	}
+
+	async createRoutine(name: string, description?: string, workoutIds?: string[]): Promise<Routine> {
+		return this.request<Routine>('/routines', {
+			method: 'POST',
+			body: JSON.stringify({ name, description: description || '', workout_ids: workoutIds || [] }),
+		})
+	}
+
+	async deleteRoutine(id: string): Promise<void> {
+		return this.request<void>(`/routines/${id}`, { method: 'DELETE' })
+	}
+
+	async getRoutineTemplates(): Promise<RoutineTemplate[]> {
+		return this.request<RoutineTemplate[]>('/routine-templates')
+	}
+
+	async createRoutineFromTemplate(templateId: string, name?: string): Promise<Routine> {
+		return this.request<Routine>(`/routine-templates/${templateId}/create`, {
+			method: 'POST',
+			body: JSON.stringify({ name: name || '' }),
+		})
+	}
+
 	// Admin endpoints
 	async getAdminUsers(): Promise<AdminUser[]> {
 		const data = await this.request<{ users: AdminUser[] }>('/admin/users')
@@ -277,6 +308,30 @@ export class ApiService {
 	async getAdminStats(): Promise<AdminStats> {
 		return this.request<AdminStats>('/admin/stats')
 	}
+}
+
+export interface Routine {
+	id: string
+	name: string
+	description: string
+	created_at: string
+	updated_at: string
+	workouts: RoutineWorkout[]
+}
+
+export interface RoutineWorkout {
+	id: string
+	routine_id: string
+	workout_id: string
+	slot_order: number
+	workout?: Workout
+}
+
+export interface RoutineTemplate {
+	id: string
+	name: string
+	description: string
+	workout_count: number
 }
 
 export interface AdminUser {
