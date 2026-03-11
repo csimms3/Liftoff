@@ -217,15 +217,6 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Routine deleted successfully"})
 		})
 
-		authAPI.GET("/routine-templates", func(c *gin.Context) {
-			templates := routineRepo.GetRoutineTemplates()
-			list := make([]gin.H, len(templates))
-			for i, t := range templates {
-				list[i] = gin.H{"id": t.ID, "name": t.Name, "description": t.Description, "workout_count": len(t.Workouts)}
-			}
-			c.JSON(http.StatusOK, list)
-		})
-
 		authAPI.POST("/routine-templates/:templateId/create", func(c *gin.Context) {
 			var input struct {
 				Name string `json:"name"`
@@ -257,6 +248,15 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusOK, templates)
+		})
+
+		api.GET("/routine-templates", func(c *gin.Context) {
+			templates := routineRepo.GetRoutineTemplates()
+			list := make([]gin.H, len(templates))
+			for i, t := range templates {
+				list[i] = gin.H{"id": t.ID, "name": t.Name, "description": t.Description, "workout_count": len(t.Workouts)}
+			}
+			c.JSON(http.StatusOK, list)
 		})
 
 		authAPI.POST("/workout-templates/:id/create", func(c *gin.Context) {
