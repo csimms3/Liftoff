@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { AuthLayout } from './AuthLayout'
 import { LoginPage } from './LoginPage'
 import { RegisterPage } from './RegisterPage'
 import { ForgotPasswordPage } from './ForgotPasswordPage'
@@ -28,10 +29,12 @@ export function AuthGate() {
 
   if (resetToken) {
     return (
-      <ResetPasswordPage
-        token={resetToken}
-        onSuccess={() => setResetToken(null)}
-      />
+      <AuthLayout>
+        <ResetPasswordPage
+          token={resetToken}
+          onSuccess={() => setResetToken(null)}
+        />
+      </AuthLayout>
     )
   }
 
@@ -54,20 +57,26 @@ export function AuthGate() {
   if (!isAuthenticated) {
     if (showForgotPassword) {
       return (
-        <ForgotPasswordPage
-          onSwitchToLogin={() => setShowForgotPassword(false)}
-        />
+        <AuthLayout>
+          <ForgotPasswordPage
+            onSwitchToLogin={() => setShowForgotPassword(false)}
+          />
+        </AuthLayout>
       )
     }
     return showRegister ? (
-      <RegisterPage onSwitchToLogin={() => setShowRegister(false)} />
+      <AuthLayout>
+        <RegisterPage onSwitchToLogin={() => setShowRegister(false)} />
+      </AuthLayout>
     ) : (
-      <LoginPage
-        onSwitchToRegister={() => setShowRegister(true)}
-        onSwitchToForgotPassword={() => setShowForgotPassword(true)}
-        onSwitchToAdmin={(show) => setShowAdmin(show)}
-        isAdminLogin={showAdmin}
-      />
+      <AuthLayout>
+        <LoginPage
+          onSwitchToRegister={() => setShowRegister(true)}
+          onSwitchToForgotPassword={() => setShowForgotPassword(true)}
+          onSwitchToAdmin={(show) => setShowAdmin(show)}
+          isAdminLogin={showAdmin}
+        />
+      </AuthLayout>
     )
   }
 

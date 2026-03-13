@@ -1,10 +1,58 @@
+/* Auth layout wrapper + menu style swap */
+.auth-layout {
+  min-height: 100vh;
+  position: relative;
+  background: var(--bg-primary);
+}
+
+.auth-menu-style-swap {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+.auth-menu-style-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.auth-menu-style-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.auth-menu-style-btn.active {
+  color: var(--accent-color);
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
 .auth-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 1.5rem;
-  background: var(--bg-primary);
+  background: transparent;
 }
 
 .auth-card {
@@ -185,4 +233,98 @@
 
 .auth-link:hover {
   color: var(--accent-hover);
+}
+
+/* ==========================================================================
+   Auth menu style variations
+   ========================================================================== */
+
+/* Variation 1: Minimal (default) */
+[data-menu-style="minimal"] .auth-card {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07), 0 8px 24px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-color);
+}
+
+[data-menu-style="minimal"] .auth-button {
+  border-radius: 8px;
+}
+
+[data-menu-style="minimal"] .auth-link {
+  text-decoration: underline;
+}
+
+/* Variation 2: Bold */
+[data-menu-style="bold"] .auth-card {
+  border: 2px solid var(--border-color);
+  box-shadow: 0 4px 16px var(--shadow-color);
+  border-radius: 12px;
+}
+
+[data-menu-style="bold"] .auth-button {
+  border-radius: 8px;
+  border: 2px solid transparent;
+  font-weight: 600;
+}
+
+[data-menu-style="bold"] .auth-button:hover:not(:disabled) {
+  border-color: var(--accent-color);
+}
+
+[data-menu-style="bold"] .auth-link {
+  text-decoration: none;
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+  border-bottom: 2px solid transparent;
+}
+
+[data-menu-style="bold"] .auth-link:hover {
+  background: var(--bg-tertiary);
+  border-bottom-color: var(--accent-color);
+}
+
+[data-menu-style="bold"] .auth-field input {
+  border-width: 2px;
+}
+
+/* Variation 3: Stacked cards */
+[data-menu-style="stacked"] .auth-card {
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px var(--shadow-color);
+  border-radius: 16px;
+}
+
+[data-menu-style="stacked"] .auth-button {
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  box-shadow: 0 2px 8px var(--shadow-color);
+}
+
+[data-menu-style="stacked"] .auth-button:hover:not(:disabled) {
+  box-shadow: 0 4px 12px var(--shadow-color);
+  transform: translateY(-1px);
+}
+
+[data-menu-style="stacked"] .auth-link {
+  text-decoration: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--accent-color);
+  background: transparent;
+}
+
+[data-menu-style="stacked"] .auth-link:hover {
+  background: color-mix(in srgb, var(--accent-color) 15%, transparent);
+}
+
+[data-menu-style="stacked"] .auth-field input {
+  border-radius: 10px;
+  box-shadow: 0 2px 6px var(--shadow-color);
+}
+
+[data-menu-style="stacked"] .auth-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
 }

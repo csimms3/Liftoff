@@ -59,7 +59,7 @@ Three distinct navigation styles for the main app menu. Users can swap between t
 
 ## Theme Swap Controls
 
-- **Location:** Header (next to theme toggle) or inside Settings
+- **Location:** Header (next to theme toggle), inside Settings, and **login screen** (top-right corner)
 - **UI:** 3 small buttons or icons representing each style:
   - `○` Minimal
   - `▬` Bold  
@@ -69,9 +69,18 @@ Three distinct navigation styles for the main app menu. Users can swap between t
 
 ---
 
+## Login Screen
+
+The same 3 variations apply to the auth pages (Login, Register, Forgot Password, Reset Password):
+- **Minimal:** Soft card, subtle inputs and links
+- **Bold:** Stronger borders, underlined links on hover
+- **Stacked:** Card-style buttons and links with shadow
+
+Swap buttons (○ ▬ ▢) appear in the top-right corner of the login screen.
+
 ## Implementation Notes
 
-- All variations use existing semantic structure (`.app-nav`, `.nav-button`)
+- All variations use existing semantic structure (`.app-nav`, `.nav-button`; `.auth-card`, `.auth-button`, `.auth-link`)
 - `data-menu-style` on `body` or `.app` drives variation
 - Responsive: stacked/stacked-cards adapt to column layout on mobile
 - Disabled state (e.g. Active Session) styled consistently across variations
