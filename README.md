@@ -181,26 +181,3 @@ Build the frontend and serve static files:
 pnpm build
 # Serve dist/ directory with any static file server
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests if applicable
-5. Submit a pull request
-
-## License
-
-This project is open source and available under the [MIT License](LICENSE).
-
-## Support
-
-If you encounter any issues or have questions:
-1. Check the existing issues
-2. Create a new issue with detailed information
-3. Include steps to reproduce the problem
-
----
-
-Built with for fitness enthusiasts everywhere.
