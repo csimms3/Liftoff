@@ -90,7 +90,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		}{
 			ID:      user.ID,
 			Email:   user.Email,
-			IsAdmin: auth.IsAdminEmail(user.Email),
+			IsAdmin: user.IsAdmin,
 		},
 	})
 }
@@ -157,7 +157,7 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		}{
 			ID:      user.ID,
 			Email:   user.Email,
-			IsAdmin: auth.IsAdminEmail(user.Email),
+			IsAdmin: user.IsAdmin,
 		},
 	})
 }
@@ -283,7 +283,7 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		"user": gin.H{
 			"id":      user.ID,
 			"email":   user.Email,
-			"isAdmin": auth.IsAdminEmail(user.Email),
+			"isAdmin": user.IsAdmin,
 		},
 	})
 }

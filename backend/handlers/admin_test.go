@@ -25,6 +25,7 @@ func newTestDB(t *testing.T) *sql.DB {
 			id TEXT PRIMARY KEY,
 			email TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL,
+			is_admin BOOLEAN NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 		)`,
 		`CREATE TABLE workouts (
@@ -173,4 +174,3 @@ func TestGetStats_WithData(t *testing.T) {
 		t.Errorf("total_sessions = %v, want 1", stats["total_sessions"])
 	}
 }
-

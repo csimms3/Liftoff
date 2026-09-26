@@ -4,215 +4,208 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io/fs"
 	"log"
+	"sort"
+	"strings"
 
-	"liftoff/backend/auth"
+	"liftoff/backend/migrations"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const adminUserID = "00000000-0000-0000-0000-000000000001"
-const adminEmail = "admin@liftoff.local"
-const adminPlainPassword = "Admin123!"
+// legacyOwnerID owns rows that predate user accounts. Older versions seeded it as
+// admin@liftoff.local with a public password; migration 006 locks it.
+const legacyOwnerID = "00000000-0000-0000-0000-000000000001"
 
-// MigrateSQLite runs pending migrations on SQLite (adds user_id, migrates data)
+// lockedPasswordHash is not a valid bcrypt hash, so CheckPassword always fails for it.
+const lockedPasswordHash = "!locked"
+
+// migrationLockID is the pg_advisory_lock key that serializes concurrent migrators.
+const migrationLockID = 7_311_900_001
+
+const createSchemaMigrations = `CREATE TABLE IF NOT EXISTS schema_migrations (
+	version TEXT PRIMARY KEY,
+	applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+)`
+
+// MigratePostgres applies every embedded migrations/NNN_*.sql file that is not yet
+// recorded in schema_migrations, in filename order, each in its own transaction.
+// Databases created before schema_migrations existed are handled because every
+// migration is idempotent (IF NOT EXISTS / conditional updates).
+func MigratePostgres(ctx context.Context, pool *pgxpool.Pool) error {
+	return migratePostgresFS(ctx, pool, migrations.FS)
+}
+
+func migratePostgresFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("acquire connection: %w", err)
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(ctx, "SELECT pg_advisory_lock($1)", migrationLockID); err != nil {
+		return fmt.Errorf("take migration lock: %w", err)
+	}
+	defer conn.Exec(context.Background(), "SELECT pg_advisory_unlock($1)", migrationLockID)
+
+	if _, err := conn.Exec(ctx, createSchemaMigrations); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+
+	applied := map[string]bool{}
+	rows, err := conn.Query(ctx, "SELECT version FROM schema_migrations")
+	if err != nil {
+		return fmt.Errorf("read schema_migrations: %w", err)
+	}
+	versions, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return fmt.Errorf("read schema_migrations: %w", err)
+	}
+	for _, v := range versions {
+		applied[v] = true
+	}
+
+	files, err := fs.Glob(fsys, "*.sql")
+	if err != nil {
+		return err
+	}
+	sort.Strings(files)
+
+	for _, name := range files {
+		version := strings.TrimSuffix(name, ".sql")
+		if applied[version] {
+			continue
+		}
+		body, err := fs.ReadFile(fsys, name)
+		if err != nil {
+			return err
+		}
+		tx, err := conn.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		// No arguments, so pgx uses the simple protocol and multi-statement files work.
+		if _, err := tx.Exec(ctx, string(body)); err != nil {
+			tx.Rollback(ctx)
+			return fmt.Errorf("migration %s: %w", version, err)
+		}
+		if _, err := tx.Exec(ctx, "INSERT INTO schema_migrations (version) VALUES ($1)", version); err != nil {
+			tx.Rollback(ctx)
+			return fmt.Errorf("record migration %s: %w", version, err)
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return fmt.Errorf("commit migration %s: %w", version, err)
+		}
+		log.Printf("Applied migration %s", version)
+	}
+	return nil
+}
+
+// sqliteMigration is the SQLite counterpart of a migrations/*.sql file. The SQL files
+// use Postgres-only syntax, so SQLite gets its baseline from createSQLiteTables and
+// its later changes from these steps. Each step must be safe on databases that
+// already had it applied before schema_migrations existed.
+type sqliteMigration struct {
+	version string
+	up      func(tx *sql.Tx) error
+}
+
+var sqliteMigrations = []sqliteMigration{
+	{"003_user_data_isolation", sqliteUserDataIsolation},
+	{"006_admin_flag", sqliteAdminFlag},
+}
+
+// MigrateSQLite applies the SQLite migration steps not yet recorded in schema_migrations.
 func MigrateSQLite(db *sql.DB) error {
-	// Check if workouts has user_id column
-	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM pragma_table_info('workouts') WHERE name='user_id'").Scan(&count)
-	if err != nil {
-		return fmt.Errorf("failed to check schema: %w", err)
+	if _, err := db.Exec(createSchemaMigrations); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
 	}
-	if count > 0 {
-		// Already migrated - ensure admin user and routines tables exist
-		if err := ensureAdminUserSQLite(db); err != nil {
+	for _, m := range sqliteMigrations {
+		var n int
+		if err := db.QueryRow("SELECT COUNT(*) FROM schema_migrations WHERE version = ?", m.version).Scan(&n); err != nil {
 			return err
 		}
-		return ensureRoutinesTablesSQLite(db)
-	}
-
-	log.Println("Running migration: add user_id to workouts, sessions, dino_game_scores")
-
-	// Add user_id columns
-	for _, table := range []string{"workouts", "workout_sessions", "dino_game_scores"} {
-		_, err = db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN user_id TEXT", table))
-		if err != nil {
-			return fmt.Errorf("failed to add user_id to %s: %w", table, err)
+		if n > 0 {
+			continue
 		}
-	}
-
-	// Create admin user (password: Admin123!)
-	if err := ensureAdminUserSQLite(db); err != nil {
-		return fmt.Errorf("failed to ensure admin user: %w", err)
-	}
-
-	// Migrate existing data to admin user
-	for _, table := range []string{"workouts", "workout_sessions", "dino_game_scores"} {
-		_, err = db.Exec(fmt.Sprintf("UPDATE %s SET user_id = ? WHERE user_id IS NULL", table), adminUserID)
+		tx, err := db.Begin()
 		if err != nil {
-			return fmt.Errorf("failed to migrate %s: %w", table, err)
-		}
-	}
-
-	log.Println("Migration completed: existing data assigned to admin@liftoff.local (password: Admin123!)")
-	return ensureRoutinesTablesSQLite(db)
-}
-
-// ensureRoutinesTablesSQLite creates routines and routine_workouts tables if they don't exist
-func ensureRoutinesTablesSQLite(db *sql.DB) error {
-	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS routines (
-		id TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL,
-		name TEXT NOT NULL,
-		description TEXT DEFAULT '',
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`)
-	if err != nil {
-		return fmt.Errorf("create routines: %w", err)
-	}
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_routines_user_id ON routines(user_id)`)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`CREATE TABLE IF NOT EXISTS routine_workouts (
-		id TEXT PRIMARY KEY,
-		routine_id TEXT NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
-		workout_id TEXT NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
-		slot_order INTEGER NOT NULL DEFAULT 1,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	)`)
-	if err != nil {
-		return fmt.Errorf("create routine_workouts: %w", err)
-	}
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_routine_workouts_routine_id ON routine_workouts(routine_id)`)
-	return err
-}
-
-// ensureAdminUserSQLite creates or updates admin user with correct password
-func ensureAdminUserSQLite(db *sql.DB) error {
-	hash, err := auth.HashPassword(adminPlainPassword)
-	if err != nil {
-		return err
-	}
-	_, err = db.Exec(`INSERT INTO users (id, email, password_hash, created_at)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-		ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash`,
-		adminUserID, adminEmail, hash)
-	return err
-}
-
-// MigratePostgres runs pending migrations on PostgreSQL
-func MigratePostgres(pool *pgxpool.Pool) error {
-	ctx := context.Background()
-
-	// Check if workouts has user_id
-	var exists bool
-	err := pool.QueryRow(ctx, `
-		SELECT EXISTS (
-			SELECT 1 FROM information_schema.columns
-			WHERE table_name = 'workouts' AND column_name = 'user_id'
-		)`).Scan(&exists)
-	if err != nil {
-		return err
-	}
-	if exists {
-		// Already migrated - ensure admin user and routines tables exist
-		if err := ensureAdminUserPostgres(ctx, pool); err != nil {
 			return err
 		}
-		return ensureRoutinesTablesPostgres(ctx, pool)
-	}
-
-	log.Println("Running migration: add user_id to workouts, sessions, dino_game_scores")
-
-	// Add columns
-	for _, alter := range []string{
-		"ALTER TABLE workouts ADD COLUMN user_id VARCHAR(36)",
-		"ALTER TABLE workout_sessions ADD COLUMN user_id VARCHAR(36)",
-		"ALTER TABLE dino_game_scores ADD COLUMN user_id VARCHAR(36)",
-	} {
-		_, err = pool.Exec(ctx, alter)
-		if err != nil {
-			return fmt.Errorf("failed to add column: %w", err)
+		if err := m.up(tx); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("migration %s: %w", m.version, err)
 		}
-	}
-
-	// Create admin user
-	if err := ensureAdminUserPostgres(ctx, pool); err != nil {
-		return fmt.Errorf("failed to ensure admin user: %w", err)
-	}
-
-	// Migrate data
-	for _, table := range []string{"workouts", "workout_sessions", "dino_game_scores"} {
-		_, err = pool.Exec(ctx, fmt.Sprintf("UPDATE %s SET user_id = $1 WHERE user_id IS NULL", table), adminUserID)
-		if err != nil {
-			return fmt.Errorf("failed to migrate %s: %w", table, err)
+		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES (?)", m.version); err != nil {
+			tx.Rollback()
+			return fmt.Errorf("record migration %s: %w", m.version, err)
 		}
-	}
-
-	// Add NOT NULL and indexes
-	for _, stmt := range []string{
-		"ALTER TABLE workouts ALTER COLUMN user_id SET NOT NULL",
-		"ALTER TABLE workout_sessions ALTER COLUMN user_id SET NOT NULL",
-		"ALTER TABLE dino_game_scores ALTER COLUMN user_id SET NOT NULL",
-		"CREATE INDEX IF NOT EXISTS idx_workouts_user_id ON workouts(user_id)",
-		"CREATE INDEX IF NOT EXISTS idx_workout_sessions_user_id ON workout_sessions(user_id)",
-		"CREATE INDEX IF NOT EXISTS idx_dino_game_scores_user_id ON dino_game_scores(user_id)",
-	} {
-		_, err = pool.Exec(ctx, stmt)
-		if err != nil {
-			return fmt.Errorf("failed to finalize migration: %w", err)
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("commit migration %s: %w", m.version, err)
 		}
+		log.Printf("Applied migration %s", m.version)
 	}
-
-	log.Println("Migration completed: existing data assigned to admin@liftoff.local (password: Admin123!)")
-	return ensureRoutinesTablesPostgres(ctx, pool)
+	return nil
 }
 
-// ensureRoutinesTablesPostgres creates routines and routine_workouts tables if they don't exist
-func ensureRoutinesTablesPostgres(ctx context.Context, pool *pgxpool.Pool) error {
-	_, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS routines (
-		id VARCHAR(36) PRIMARY KEY,
-		user_id VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-		name VARCHAR(255) NOT NULL,
-		description TEXT DEFAULT '',
-		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-		updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-	)`)
-	if err != nil {
-		return fmt.Errorf("create routines: %w", err)
+func sqliteHasColumn(tx *sql.Tx, table, column string) (bool, error) {
+	var n int
+	err := tx.QueryRow("SELECT COUNT(*) FROM pragma_table_info(?) WHERE name = ?", table, column).Scan(&n)
+	return n > 0, err
+}
+
+// sqliteUserDataIsolation adds user_id to user-owned tables and assigns rows that
+// predate user accounts to the (locked) legacy owner.
+func sqliteUserDataIsolation(tx *sql.Tx) error {
+	tables := []string{"workouts", "workout_sessions", "dino_game_scores"}
+	orphans := false
+	for _, table := range tables {
+		has, err := sqliteHasColumn(tx, table, "user_id")
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN user_id TEXT", table)); err != nil {
+				return fmt.Errorf("add user_id to %s: %w", table, err)
+			}
+		}
+		var n int
+		if err := tx.QueryRow(fmt.Sprintf("SELECT COUNT(*) FROM %s WHERE user_id IS NULL", table)).Scan(&n); err != nil {
+			return err
+		}
+		orphans = orphans || n > 0
 	}
-	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_routines_user_id ON routines(user_id)`)
+	if !orphans {
+		return nil
+	}
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO users (id, email, password_hash, created_at)
+		VALUES (?, 'admin@liftoff.local', ?, CURRENT_TIMESTAMP)`, legacyOwnerID, lockedPasswordHash); err != nil {
+		return fmt.Errorf("create legacy owner: %w", err)
+	}
+	for _, table := range tables {
+		if _, err := tx.Exec(fmt.Sprintf("UPDATE %s SET user_id = ? WHERE user_id IS NULL", table), legacyOwnerID); err != nil {
+			return fmt.Errorf("assign %s to legacy owner: %w", table, err)
+		}
+	}
+	return nil
+}
+
+// sqliteAdminFlag mirrors migrations/006_admin_flag.sql.
+func sqliteAdminFlag(tx *sql.Tx) error {
+	has, err := sqliteHasColumn(tx, "users", "is_admin")
 	if err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS routine_workouts (
-		id VARCHAR(36) PRIMARY KEY,
-		routine_id VARCHAR(36) NOT NULL REFERENCES routines(id) ON DELETE CASCADE,
-		workout_id VARCHAR(36) NOT NULL REFERENCES workouts(id) ON DELETE CASCADE,
-		slot_order INTEGER NOT NULL DEFAULT 1,
-		created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-		updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-	)`)
-	if err != nil {
-		return fmt.Errorf("create routine_workouts: %w", err)
+	if !has {
+		if _, err := tx.Exec("ALTER TABLE users ADD COLUMN is_admin BOOLEAN NOT NULL DEFAULT 0"); err != nil {
+			return err
+		}
 	}
-	_, err = pool.Exec(ctx, `CREATE INDEX IF NOT EXISTS idx_routine_workouts_routine_id ON routine_workouts(routine_id)`)
-	return err
-}
-
-// ensureAdminUserPostgres creates or updates admin user with correct password
-func ensureAdminUserPostgres(ctx context.Context, pool *pgxpool.Pool) error {
-	hash, err := auth.HashPassword(adminPlainPassword)
-	if err != nil {
+	if _, err := tx.Exec("UPDATE users SET password_hash = ?, is_admin = 0 WHERE id = ?", lockedPasswordHash, legacyOwnerID); err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, `
-		INSERT INTO users (id, email, password_hash, created_at)
-		VALUES ($1, $2, $3, NOW())
-		ON CONFLICT (email) DO UPDATE SET password_hash = $3 WHERE users.email = $2`,
-		adminUserID, adminEmail, hash)
+	_, err = tx.Exec("DELETE FROM password_reset_tokens WHERE user_id = ?", legacyOwnerID)
 	return err
 }

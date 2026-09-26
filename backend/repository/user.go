@@ -5,12 +5,14 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"liftoff/backend/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -119,7 +121,7 @@ func (r *UserRepository) getUserIDByResetTokenPostgres(ctx context.Context, toke
 		WHERE token_hash = $1 AND expires_at > NOW()
 		LIMIT 1
 	`, tokenHash).Scan(&userID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return "", nil
 	}
 	return userID, err
@@ -132,7 +134,7 @@ func (r *UserRepository) getUserIDByResetTokenSQLite(ctx context.Context, tokenH
 		WHERE token_hash = ? AND expires_at > datetime('now')
 		LIMIT 1
 	`, tokenHash).Scan(&userID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return userID, err
@@ -177,16 +179,16 @@ func (r *UserRepository) GetByEmail(ctx context.Context, email string) (*models.
 
 func (r *UserRepository) getByEmailPostgres(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, created_at
+		SELECT id, email, password_hash, is_admin, created_at
 		FROM users
 		WHERE LOWER(email) = LOWER($1)
 	`
 
 	var user models.User
 	err := r.db.QueryRow(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt,
+		&user.ID, &user.Email, &user.PasswordHash, &user.IsAdmin, &user.CreatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -198,16 +200,16 @@ func (r *UserRepository) getByEmailPostgres(ctx context.Context, email string) (
 
 func (r *UserRepository) getByEmailSQLite(ctx context.Context, email string) (*models.User, error) {
 	query := `
-		SELECT id, email, password_hash, created_at
+		SELECT id, email, password_hash, is_admin, created_at
 		FROM users
 		WHERE LOWER(email) = LOWER(?)
 	`
 
 	var user models.User
 	err := r.sqlite.QueryRowContext(ctx, query, email).Scan(
-		&user.ID, &user.Email, &user.PasswordHash, &user.CreatedAt,
+		&user.ID, &user.Email, &user.PasswordHash, &user.IsAdmin, &user.CreatedAt,
 	)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -227,14 +229,14 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 
 func (r *UserRepository) getByIDPostgres(ctx context.Context, id string) (*models.User, error) {
 	query := `
-		SELECT id, email, created_at
+		SELECT id, email, is_admin, created_at
 		FROM users
 		WHERE id = $1
 	`
 
 	var user models.User
-	err := r.db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Email, &user.CreatedAt)
-	if err == sql.ErrNoRows {
+	err := r.db.QueryRow(ctx, query, id).Scan(&user.ID, &user.Email, &user.IsAdmin, &user.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -246,14 +248,14 @@ func (r *UserRepository) getByIDPostgres(ctx context.Context, id string) (*model
 
 func (r *UserRepository) getByIDSQLite(ctx context.Context, id string) (*models.User, error) {
 	query := `
-		SELECT id, email, created_at
+		SELECT id, email, is_admin, created_at
 		FROM users
 		WHERE id = ?
 	`
 
 	var user models.User
-	err := r.sqlite.QueryRowContext(ctx, query, id).Scan(&user.ID, &user.Email, &user.CreatedAt)
-	if err == sql.ErrNoRows {
+	err := r.sqlite.QueryRowContext(ctx, query, id).Scan(&user.ID, &user.Email, &user.IsAdmin, &user.CreatedAt)
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {
@@ -272,7 +274,7 @@ func (r *UserRepository) ListAllUsers(ctx context.Context) ([]*models.User, erro
 }
 
 func (r *UserRepository) listAllUsersPostgres(ctx context.Context) ([]*models.User, error) {
-	rows, err := r.db.Query(ctx, `SELECT id, email, created_at FROM users ORDER BY created_at DESC`)
+	rows, err := r.db.Query(ctx, `SELECT id, email, is_admin, created_at FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
@@ -280,7 +282,7 @@ func (r *UserRepository) listAllUsersPostgres(ctx context.Context) ([]*models.Us
 	var users []*models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, &u)
@@ -289,7 +291,7 @@ func (r *UserRepository) listAllUsersPostgres(ctx context.Context) ([]*models.Us
 }
 
 func (r *UserRepository) listAllUsersSQLite(ctx context.Context) ([]*models.User, error) {
-	rows, err := r.sqlite.QueryContext(ctx, `SELECT id, email, created_at FROM users ORDER BY created_at DESC`)
+	rows, err := r.sqlite.QueryContext(ctx, `SELECT id, email, is_admin, created_at FROM users ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
@@ -297,7 +299,7 @@ func (r *UserRepository) listAllUsersSQLite(ctx context.Context) ([]*models.User
 	var users []*models.User
 	for rows.Next() {
 		var u models.User
-		if err := rows.Scan(&u.ID, &u.Email, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.ID, &u.Email, &u.IsAdmin, &u.CreatedAt); err != nil {
 			return nil, err
 		}
 		users = append(users, &u)
@@ -305,3 +307,23 @@ func (r *UserRepository) listAllUsersSQLite(ctx context.Context) ([]*models.User
 	return users, nil
 }
 
+// IsAdmin reports whether the user has the is_admin flag. Unknown users are not admins.
+func (r *UserRepository) IsAdmin(ctx context.Context, userID string) (bool, error) {
+	var isAdmin bool
+	var err error
+	if r.useSQLite {
+		err = r.sqlite.QueryRowContext(ctx, `SELECT is_admin FROM users WHERE id = ?`, userID).Scan(&isAdmin)
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+	} else {
+		err = r.db.QueryRow(ctx, `SELECT is_admin FROM users WHERE id = $1`, userID).Scan(&isAdmin)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to check admin: %w", err)
+	}
+	return isAdmin, nil
+}

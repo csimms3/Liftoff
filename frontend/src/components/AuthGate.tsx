@@ -96,7 +96,7 @@ export function AuthGate() {
         >
           <p style={{ color: 'var(--text-primary)' }}>Access denied. Admin only.</p>
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Sign in with admin@liftoff.local to access the admin panel.
+            Sign in with an admin account to access the admin panel.
           </p>
           <div style={{ display: 'flex', gap: '0.75rem' }}>
             <button

@@ -71,7 +71,7 @@ func main() {
 
 		// Admin routes (auth + admin role required)
 		adminAPI := api.Group("/admin")
-		adminAPI.Use(auth.AuthMiddleware(), auth.AdminMiddleware())
+		adminAPI.Use(auth.AuthMiddleware(), auth.AdminMiddleware(userRepo.IsAdmin))
 		{
 			adminAPI.GET("/users", adminHandler.ListUsers)
 			adminAPI.GET("/stats", adminHandler.GetStats)

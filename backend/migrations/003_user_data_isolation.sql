@@ -7,15 +7,14 @@ ALTER TABLE workout_sessions ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) REFERE
 -- Add user_id to dino_game_scores
 ALTER TABLE dino_game_scores ADD COLUMN IF NOT EXISTS user_id VARCHAR(36) REFERENCES users(id);
 
--- Create default admin user for migrated data (password: Admin123! - change after first login)
--- Run this only if migrating existing data. For fresh installs, this user may be created by app.
+-- Owner for rows that predate user accounts. Only created when such rows exist,
+-- and its password hash is not a valid bcrypt hash, so nobody can log in as it.
 INSERT INTO users (id, email, password_hash, created_at)
-SELECT 
-    '00000000-0000-0000-0000-000000000001',
-    'admin@liftoff.local',
-    '$2a$10$SlmOtj3A17j2JLju8e9VfeHZo/SjwuC4ciN0mbSXR9gILDiuaJexe',
-    NOW()
-WHERE NOT EXISTS (SELECT 1 FROM users WHERE email = 'admin@liftoff.local');
+SELECT '00000000-0000-0000-0000-000000000001', 'admin@liftoff.local', '!locked', NOW()
+WHERE NOT EXISTS (SELECT 1 FROM users WHERE id = '00000000-0000-0000-0000-000000000001')
+  AND (EXISTS (SELECT 1 FROM workouts WHERE user_id IS NULL)
+    OR EXISTS (SELECT 1 FROM workout_sessions WHERE user_id IS NULL)
+    OR EXISTS (SELECT 1 FROM dino_game_scores WHERE user_id IS NULL));
 
 -- Migrate existing workouts to admin user
 UPDATE workouts SET user_id = '00000000-0000-0000-0000-000000000001' WHERE user_id IS NULL;
