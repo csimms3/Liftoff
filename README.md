@@ -16,7 +16,7 @@ A full-stack workout tracking application designed to help users create, track, 
 
 ### Backend (Go)
 - **Framework**: Gin web framework
-- **Database**: PostgreSQL (primary) with SQLite fallback
+- **Database**: PostgreSQL; SQLite for local development
 - **Data Access**: pgx / database/sql with repository pattern
 - **Auth**: JWT (access tokens) with AuthMiddleware for protected routes
 
@@ -68,7 +68,7 @@ Starts backend (8080) and frontend (5173). Open http://localhost:5173. Press Ctr
 ### Prerequisites
 - Go 1.21+ 
 - Node.js 18+ and pnpm
-- PostgreSQL (optional, SQLite will be used as fallback)
+- PostgreSQL (optional locally; SQLite is used when `DATABASE_URL` is unset and no local Postgres is running)
 
 ### Backend Setup
 ```bash
@@ -92,9 +92,11 @@ pnpm dev
 The frontend will start on `http://localhost:5173` and proxy `/api` to the backend in development.
 
 ### Database Setup
-The application automatically detects and connects to:
-1. PostgreSQL (if available)
-2. SQLite (fallback, creates `liftoff.db` file)
+- **`DATABASE_URL` set** (production): only that PostgreSQL is used. If it is unreachable, the
+  server still starts, `/api/*` answers `503` (the login screen shows why), and it reconnects in
+  the background. It never falls back to SQLite. `GET /api/status` reports database availability.
+- **`DATABASE_URL` unset** (local dev): a PostgreSQL on `localhost:5432` if one is running,
+  otherwise SQLite in `backend/liftoff.db`.
 
 Schema migrations in `backend/migrations/` are applied on startup and recorded in
 `schema_migrations`.
@@ -107,7 +109,7 @@ UPDATE users SET is_admin = true WHERE email = 'you@example.com';
 
 ### Configuration (env or `backend/.env`, see `backend/.env.example`)
 - `JWT_SECRET` - **Required**, at least 32 characters (`openssl rand -hex 32`). The server refuses to start without it; `scripts/boot.sh` generates one into `backend/.env` for local dev
-- `JWT_EXPIRY_MINUTES` - Session token expiry (default: 15)
+- `JWT_EXPIRY_MINUTES` - Session token expiry without "remember me" (default: 720, i.e. 12 hours)
 - `CORS_ALLOWED_ORIGINS` - Comma-separated origins allowed cross-origin (default: none; not needed same-origin or in dev)
 - `TRUSTED_PROXIES` - Comma-separated proxy IPs/CIDRs trusted for `X-Forwarded-For` (default: none)
 

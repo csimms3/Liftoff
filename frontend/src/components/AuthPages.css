@@ -2,7 +2,22 @@
 .auth-layout {
   min-height: 100vh;
   position: relative;
+  display: flex;
+  flex-direction: column;
   background: var(--bg-primary);
+}
+
+/* The page centers the card in whatever height is left under the banner. */
+.auth-layout > .auth-page {
+  flex: 1;
+  min-height: 0;
+}
+
+/* In normal flow, below the menu-style switcher (absolute, top right), so the two
+   never overlap and the card moves down instead of being covered. */
+.auth-status-banner {
+  width: min(28rem, calc(100% - 2rem));
+  margin: 3.75rem auto 0;
 }
 
 .auth-menu-style-swap {

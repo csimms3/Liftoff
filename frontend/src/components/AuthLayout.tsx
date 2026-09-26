@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { ServiceStatusBanner } from './ServiceStatusBanner'
 
 type MenuStyle = 'minimal' | 'bold' | 'stacked'
 
@@ -49,6 +50,7 @@ export function AuthLayout({ children }: AuthLayoutProps) {
           ▢
         </button>
       </div>
+      <ServiceStatusBanner />
       {children}
     </div>
   )
