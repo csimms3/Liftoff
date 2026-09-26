@@ -10,6 +10,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// LockedPasswordHash marks an account nobody can log in to or reset. It is not a
+// valid bcrypt hash, so CheckPassword always fails for it.
+const LockedPasswordHash = "!locked"
+
 // HashToken creates a deterministic hash of a token for secure storage
 func HashToken(token string) string {
 	h := sha256.Sum256([]byte(token))
@@ -17,10 +21,10 @@ func HashToken(token string) string {
 }
 
 var (
-	ErrPasswordTooShort       = errors.New("password must be at least 8 characters")
-	ErrPasswordNoNumber       = errors.New("password must contain at least one number")
-	ErrPasswordNoCapital      = errors.New("password must contain at least one capital letter")
-	ErrPasswordNoSpecialChar  = errors.New("password must contain at least one special character")
+	ErrPasswordTooShort      = errors.New("password must be at least 8 characters")
+	ErrPasswordNoNumber      = errors.New("password must contain at least one number")
+	ErrPasswordNoCapital     = errors.New("password must contain at least one capital letter")
+	ErrPasswordNoSpecialChar = errors.New("password must contain at least one special character")
 )
 
 var (

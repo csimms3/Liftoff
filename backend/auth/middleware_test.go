@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -98,105 +100,44 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 
 // --- AdminMiddleware ---
 
-// adminRouter sets user_email in context (simulating AuthMiddleware) then runs AdminMiddleware
-func adminRouter(email string) *gin.Engine {
+// adminRouter sets user_id in context (simulating AuthMiddleware) then runs AdminMiddleware
+func adminRouter(userID string, check AdminChecker) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
 	r.GET("/admin", func(c *gin.Context) {
-		c.Set(UserEmailKey, email)
+		if userID != "" {
+			c.Set(UserIDKey, userID)
+		}
 		c.Next()
-	}, AdminMiddleware(), func(c *gin.Context) {
+	}, AdminMiddleware(check), func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"ok": true})
 	})
 	return r
 }
 
-func TestAdminMiddleware_NonAdmin(t *testing.T) {
-	r := adminRouter("user@example.com")
-	req := httptest.NewRequest("GET", "/admin", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusForbidden {
-		t.Errorf("got %d, want 403", w.Code)
-	}
-}
-
-func TestAdminMiddleware_DefaultAdmin(t *testing.T) {
-	os.Unsetenv("ADMIN_EMAILS")
-	r := adminRouter("admin@liftoff.local")
-	req := httptest.NewRequest("GET", "/admin", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-	if w.Code != http.StatusOK {
-		t.Errorf("got %d, want 200", w.Code)
-	}
-}
-
-func TestAdminMiddleware_EnvOverride(t *testing.T) {
-	os.Setenv("ADMIN_EMAILS", "boss@company.com,ops@company.com")
-	defer os.Unsetenv("ADMIN_EMAILS")
+func TestAdminMiddleware(t *testing.T) {
+	admins := map[string]bool{"u-admin": true}
+	check := func(_ context.Context, id string) (bool, error) { return admins[id], nil }
 
 	cases := []struct {
-		email string
-		want  int
+		name   string
+		userID string
+		check  AdminChecker
+		want   int
 	}{
-		{"boss@company.com", http.StatusOK},
-		{"ops@company.com", http.StatusOK},
-		{"admin@liftoff.local", http.StatusForbidden}, // default no longer applies
-		{"other@company.com", http.StatusForbidden},
+		{"admin flag set", "u-admin", check, http.StatusOK},
+		{"admin flag unset", "u-user", check, http.StatusForbidden},
+		{"no user in context", "", check, http.StatusForbidden},
+		{"lookup error", "u-admin", func(context.Context, string) (bool, error) {
+			return false, errors.New("db down")
+		}, http.StatusInternalServerError},
 	}
 	for _, c := range cases {
-		r := adminRouter(c.email)
-		req := httptest.NewRequest("GET", "/admin", nil)
+		r := adminRouter(c.userID, c.check)
 		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
+		r.ServeHTTP(w, httptest.NewRequest("GET", "/admin", nil))
 		if w.Code != c.want {
-			t.Errorf("email %q: got %d, want %d", c.email, w.Code, c.want)
-		}
-	}
-}
-
-// --- IsAdminEmail ---
-
-func TestIsAdminEmail(t *testing.T) {
-	os.Unsetenv("ADMIN_EMAILS")
-
-	cases := []struct {
-		email string
-		want  bool
-	}{
-		{"admin@liftoff.local", true},
-		{"ADMIN@LIFTOFF.LOCAL", true},
-		{"  admin@liftoff.local  ", true},
-		{"user@example.com", false},
-		{"", false},
-	}
-	for _, c := range cases {
-		got := IsAdminEmail(c.email)
-		if got != c.want {
-			t.Errorf("IsAdminEmail(%q) = %v, want %v", c.email, got, c.want)
-		}
-	}
-}
-
-func TestIsAdminEmail_EnvList(t *testing.T) {
-	os.Setenv("ADMIN_EMAILS", "alice@co.com, Bob@Co.Com ,charlie@co.com")
-	defer os.Unsetenv("ADMIN_EMAILS")
-
-	cases := []struct {
-		email string
-		want  bool
-	}{
-		{"alice@co.com", true},
-		{"bob@co.com", true},   // case-insensitive
-		{"charlie@co.com", true},
-		{"dave@co.com", false},
-		{"admin@liftoff.local", false}, // default not active when env is set
-	}
-	for _, c := range cases {
-		got := IsAdminEmail(c.email)
-		if got != c.want {
-			t.Errorf("IsAdminEmail(%q) = %v, want %v", c.email, got, c.want)
+			t.Errorf("%s: got %d, want %d", c.name, w.Code, c.want)
 		}
 	}
 }

@@ -219,7 +219,7 @@ describe('AuthContext — isAdmin', () => {
     await waitFor(() => expect(screen.getByTestId('admin')).toHaveTextContent('yes'))
   })
 
-  it('isAdmin is true for admin@liftoff.local even without backend flag', async () => {
+  it('isAdmin comes only from the backend flag, never from the email', async () => {
     const responseWithoutFlag = {
       ...fakeAdminAuthResponse,
       user: { id: 'admin', email: 'admin@liftoff.local', isAdmin: false },
@@ -228,7 +228,7 @@ describe('AuthContext — isAdmin', () => {
     const user = userEvent.setup()
     render(<AuthProvider><AuthConsumer /></AuthProvider>)
     await user.click(screen.getByText('Login Admin'))
-    await waitFor(() => expect(screen.getByTestId('admin')).toHaveTextContent('yes'))
+    await waitFor(() => expect(screen.getByTestId('admin')).toHaveTextContent('no'))
   })
 })
 

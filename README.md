@@ -93,6 +93,15 @@ The application automatically detects and connects to:
 1. PostgreSQL (if available)
 2. SQLite (fallback, creates `liftoff.db` file)
 
+Schema migrations in `backend/migrations/` are applied on startup and recorded in
+`schema_migrations`.
+
+### Admin access
+There is no default admin account. To make a user an admin, set the flag by hand:
+```sql
+UPDATE users SET is_admin = true WHERE email = 'you@example.com';
+```
+
 ### Auth (optional env)
 - `JWT_SECRET` - Secret for signing tokens (default: dev secret)
 - `JWT_EXPIRY_MINUTES` - Session token expiry (default: 15)
@@ -146,7 +155,8 @@ The application includes 32 predefined exercise templates organized by muscle gr
 
 ### Testing
 ```bash
-# Backend tests
+# Backend tests (Postgres tests run only when LIFTOFF_TEST_DATABASE_URL is set;
+# each test uses its own schema)
 cd backend
 go test ./...
 
