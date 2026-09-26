@@ -14,7 +14,7 @@ var (
 )
 
 const (
-	DefaultTokenExpiryMinutes    = 15
+	DefaultTokenExpiryMinutes   = 15
 	DefaultRememberMeExpiryDays = 30
 )
 
@@ -26,8 +26,8 @@ type Claims struct {
 
 // TokenConfig holds JWT configuration
 type TokenConfig struct {
-	Secret             []byte
-	ExpiryMinutes      int
+	Secret               []byte
+	ExpiryMinutes        int
 	RememberMeExpiryDays int
 }
 

@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AuthProvider, useAuth, getSessionTimeoutMinutes, setSessionTimeoutMinutes } from './AuthContext'
+import { AuthProvider } from './AuthContext'
+import { useAuth } from './useAuth'
+import { getSessionTimeoutMinutes, setSessionTimeoutMinutes } from './sessionTimeout'
 
 // Helper: consumer component that exposes full auth state for assertions
 function AuthConsumer() {

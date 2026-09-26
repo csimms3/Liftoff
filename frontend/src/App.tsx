@@ -3,8 +3,8 @@ import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetLoggingForm } from './components/SetLoggingForm'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
-import { useAuth } from './context/AuthContext'
-import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet, type Routine, type RoutineTemplate } from './api'
+import { useAuth } from './context/useAuth'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type Routine, type RoutineTemplate } from './api'
 import './App.css'
 
 export default function App() {
@@ -312,20 +312,6 @@ export default function App() {
     }
   }
 
-  const completeSet = async (sessionExerciseId: string, setIndex: number) => {
-    if (!activeSession) return
-    
-    try {
-      setLoading(true)
-      await apiService.completeSet(sessionExerciseId, setIndex)
-      loadActiveSession() // Reload active session to update completed sets
-    } catch {
-      setError('Failed to complete set')
-    } finally {
-      setLoading(false)
-    }
-  }
-
   const logSet = async (setId: string, reps: number, weight: number, notes?: string) => {
     try {
       setLoading(true)
@@ -437,11 +423,6 @@ export default function App() {
       setLoading(false)
     }
   }
-
-  const handleWorkoutCreated = () => {
-    loadWorkouts();
-    setView('workouts');
-  };
 
   const addExerciseFromLibrary = async (template: ExerciseTemplate) => {
     if (!currentWorkout) {

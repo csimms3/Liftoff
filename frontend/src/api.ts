@@ -1,5 +1,3 @@
-// Use relative URL - Vite proxies /api to backend in dev
-const API_BASE = '/api'
 const AUTH_KEY = 'liftoff-auth'
 
 function getAuthToken(): string | null {

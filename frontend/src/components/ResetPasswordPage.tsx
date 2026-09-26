@@ -37,7 +37,7 @@ export function ResetPasswordPage({ token, onSuccess }: ResetPasswordPageProps) 
       setError('Password must contain at least one capital letter')
       return
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?~`]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(password)) {
       setError('Password must contain at least one special character')
       return
     }
