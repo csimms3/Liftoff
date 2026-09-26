@@ -21,7 +21,7 @@ A full-stack workout tracking application designed to help users create, track, 
 - **Auth**: JWT (access tokens) with AuthMiddleware for protected routes
 
 ### Frontend (React + TypeScript)
-- **Framework**: React 18 with TypeScript
+- **Framework**: React 19 with TypeScript
 - **Build Tool**: Vite for fast development and building
 - **Styling**: CSS with responsive design principles
 - **State Management**: React hooks, AuthContext for auth state
@@ -32,10 +32,13 @@ A full-stack workout tracking application designed to help users create, track, 
 Liftoff/
 ├── backend/                 # Go backend application
 │   ├── auth/               # JWT auth and middleware
-│   ├── database/           # Database connection and configuration
-│   ├── handlers/            # HTTP handlers (auth, etc.)
+│   ├── database/           # Database connection and migration runner
+│   ├── handlers/           # HTTP handlers (auth, admin)
+│   ├── middleware/         # CORS, rate limiting
+│   ├── migrations/         # Ordered SQL migrations, applied on startup
 │   ├── models/             # Data models and structs
 │   ├── repository/         # Data access layer
+│   ├── internal/testdb/    # Test databases (SQLite, per-test Postgres schemas)
 │   ├── main.go             # Main application entry point
 │   └── go.mod              # Go module dependencies
 ├── frontend/                # React frontend application
@@ -51,6 +54,7 @@ Liftoff/
 │   └── boot.sh             # Start backend + frontend
 ├── docs/
 │   └── architecture.md     # Architecture overview
+├── .github/workflows/      # CI: vet, lint, build, tests
 ├── docker-compose.yml      # Docker setup for PostgreSQL
 └── README.md               # This file
 ```
@@ -66,8 +70,8 @@ cd frontend && pnpm install && cd ..
 Starts backend (8080) and frontend (5173). Open http://localhost:5173. Press Ctrl+C to stop both.
 
 ### Prerequisites
-- Go 1.21+ 
-- Node.js 18+ and pnpm
+- Go 1.24+
+- Node.js 22 (see `frontend/.nvmrc`; Node 26 breaks the jsdom tests) and pnpm (`corepack enable`)
 - PostgreSQL (optional locally; SQLite is used when `DATABASE_URL` is unset and no local Postgres is running)
 
 ### Backend Setup
@@ -185,16 +189,7 @@ pnpm build
 
 ## Deployment
 
-### Backend
-The Go backend can be deployed as a single binary:
-```bash
-go build -o liftoff
-./liftoff
-```
-
-### Frontend
-Build the frontend and serve static files:
-```bash
-pnpm build
-# Serve dist/ directory with any static file server
-```
+Not deployed yet. `go build` in `backend/` produces the API server, which needs
+`JWT_SECRET` and `DATABASE_URL` (see `backend/.env.example`); `pnpm build` in `frontend/`
+produces static files in `frontend/dist/`. How the two are hosted together is still to be
+decided.
