@@ -309,7 +309,7 @@ func (r *RoutineRepository) CreateFromTemplate(ctx context.Context, userID, temp
 		}
 	}
 	if tpl == nil {
-		return nil, fmt.Errorf("template not found: %s", templateID)
+		return nil, fmt.Errorf("%w: %s", ErrTemplateNotFound, templateID)
 	}
 	name := routineName
 	if name == "" {

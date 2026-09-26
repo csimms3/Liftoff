@@ -1,18 +1,34 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"liftoff/backend/auth"
 	"liftoff/backend/database"
 	"liftoff/backend/handlers"
+	"liftoff/backend/middleware"
 	"liftoff/backend/models"
 	"liftoff/backend/repository"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
+
+// serverError logs err and sends a generic message, so SQL and driver details
+// never reach the client.
+func serverError(c *gin.Context, msg string, err error) {
+	log.Printf("%s %s: %v", c.Request.Method, c.FullPath(), err)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
+}
+
+// badRequest answers a request body that failed to bind or validate.
+func badRequest(c *gin.Context) {
+	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+}
 
 // Liftoff API Server
 // A workout tracking application with Go backend and React frontend
@@ -25,6 +41,13 @@ import (
 // - Support for both PostgreSQL and SQLite databases
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("No .env file found, using environment variables")
+	}
+	if err := auth.CheckConfig(); err != nil {
+		log.Fatalf("Refusing to start: %v (generate one with: openssl rand -hex 32)", err)
+	}
+
 	// Initialize database connection
 	db, err := database.NewDatabase()
 	if err != nil {
@@ -44,29 +67,27 @@ func main() {
 	// Setup Gin router with default middleware (Logger and Recovery)
 	r := gin.Default()
 
-	// Add CORS middleware for frontend integration
-	r.Use(func(c *gin.Context) {
-		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
-		c.Header("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization")
+	// Only trust X-Forwarded-For from these proxies (comma-separated IPs/CIDRs).
+	// Unset means trust none, so ClientIP is the TCP peer and can't be spoofed.
+	if err := r.SetTrustedProxies(middleware.SplitList(os.Getenv("TRUSTED_PROXIES"))); err != nil {
+		log.Fatalf("Invalid TRUSTED_PROXIES: %v", err)
+	}
 
-		// Handle preflight requests
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
+	// Cross-origin access only for listed origins; none needed when the SPA is same-origin.
+	r.Use(middleware.CORS(middleware.SplitList(os.Getenv("CORS_ALLOWED_ORIGINS"))))
 
-		c.Next()
-	})
+	loginLimit := middleware.NewRateLimiter(10, time.Minute).Middleware()
+	registerLimit := middleware.NewRateLimiter(5, time.Hour).Middleware()
 
 	// API routes group - all endpoints under /api
 	api := r.Group("/api")
 	{
 		// Auth routes (no middleware required for login/register)
-		api.POST("/auth/login", authHandler.Login)
-		api.POST("/auth/register", authHandler.Register)
-		api.POST("/auth/forgot-password", authHandler.ForgotPassword)
-		api.POST("/auth/reset-password", authHandler.ResetPassword)
+		api.POST("/auth/login", loginLimit, authHandler.Login)
+		api.POST("/auth/register", registerLimit, authHandler.Register)
+		// TODO(email): register /auth/forgot-password (behind its own rate limiter, e.g.
+		// 3/hour) and /auth/reset-password once an email provider sends reset links.
+		// Until then the handlers exist but are unreachable, and the UI hides the link.
 		api.GET("/auth/me", auth.AuthMiddleware(), authHandler.Me)
 
 		// Admin routes (auth + admin role required)
@@ -223,9 +244,12 @@ func main() {
 			}
 			_ = c.ShouldBindJSON(&input)
 			routine, err := routineRepo.CreateFromTemplate(c.Request.Context(), userID(c), c.Param("templateId"), input.Name)
+			if errors.Is(err, repository.ErrTemplateNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Routine template not found"})
+				return
+			}
 			if err != nil {
-				log.Printf("Error creating from template: %v", err)
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				serverError(c, "Failed to create routine from template", err)
 				return
 			}
 			c.JSON(http.StatusCreated, routine)
@@ -235,7 +259,7 @@ func main() {
 		api.GET("/workout-templates", func(c *gin.Context) {
 			templates, err := workoutRepo.GetWorkoutTemplates(c.Request.Context())
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to fetch workout templates", err)
 				return
 			}
 			c.JSON(http.StatusOK, templates)
@@ -244,7 +268,7 @@ func main() {
 		api.GET("/exercise-templates", func(c *gin.Context) {
 			templates, err := workoutRepo.GetExerciseTemplates(c.Request.Context())
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to fetch exercise templates", err)
 				return
 			}
 			c.JSON(http.StatusOK, templates)
@@ -264,12 +288,16 @@ func main() {
 				Name string `json:"name"`
 			}
 			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 			workout, err := workoutRepo.CreateWorkoutFromTemplate(c.Request.Context(), userID(c), c.Param("id"), req.Name)
+			if errors.Is(err, repository.ErrTemplateNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Workout template not found"})
+				return
+			}
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to create workout from template", err)
 				return
 			}
 			c.JSON(http.StatusCreated, workout)
@@ -285,7 +313,7 @@ func main() {
 				WorkoutID string  `json:"workout_id" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 
@@ -299,7 +327,7 @@ func main() {
 
 			err := workoutRepo.CreateExercise(c.Request.Context(), userID(c), exercise)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to add exercise", err)
 				return
 			}
 			c.JSON(http.StatusCreated, exercise)
@@ -308,7 +336,7 @@ func main() {
 		authAPI.DELETE("/exercises/:id", func(c *gin.Context) {
 			err := workoutRepo.DeleteExercise(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to delete exercise", err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Exercise deleted"})
@@ -322,7 +350,7 @@ func main() {
 			}
 			exercises, err := workoutRepo.GetExercisesByWorkout(c.Request.Context(), c.Param("id"))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to fetch exercises", err)
 				return
 			}
 			c.JSON(http.StatusOK, exercises)
@@ -334,13 +362,13 @@ func main() {
 				WorkoutID string `json:"workout_id" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 
 			session, err := sessionRepo.CreateSessionWithExercises(c.Request.Context(), userID(c), input.WorkoutID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to start session", err)
 				return
 			}
 			c.JSON(http.StatusCreated, session)
@@ -358,7 +386,7 @@ func main() {
 		authAPI.PUT("/sessions/:id/end", func(c *gin.Context) {
 			session, err := sessionRepo.EndSession(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to end session", err)
 				return
 			}
 			c.JSON(http.StatusOK, session)
@@ -370,12 +398,12 @@ func main() {
 				ExerciseID string `json:"exerciseId" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 			sessionExercise, err := sessionRepo.CreateSessionExercise(c.Request.Context(), userID(c), c.Param("id"), input.ExerciseID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to add exercise to session", err)
 				return
 			}
 			c.JSON(http.StatusCreated, sessionExercise)
@@ -389,7 +417,7 @@ func main() {
 				Weight            float64 `json:"weight"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 
@@ -401,7 +429,7 @@ func main() {
 
 			err := sessionRepo.CreateExerciseSet(c.Request.Context(), userID(c), set)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to add set", err)
 				return
 			}
 			c.JSON(http.StatusCreated, set)
@@ -412,12 +440,12 @@ func main() {
 				SetIndex int `json:"setIndex"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), userID(c), c.Param("id"), input.SetIndex)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to complete set", err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
@@ -430,7 +458,7 @@ func main() {
 				Notes  *string `json:"notes"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 			set := &models.ExerciseSet{
@@ -442,7 +470,7 @@ func main() {
 			}
 			err := sessionRepo.UpdateExerciseSet(c.Request.Context(), userID(c), set)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to update set", err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Set updated"})
@@ -452,7 +480,7 @@ func main() {
 		authAPI.GET("/sessions/completed", func(c *gin.Context) {
 			sessions, err := sessionRepo.GetCompletedSessions(c.Request.Context(), userID(c))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to fetch workout history", err)
 				return
 			}
 			c.JSON(http.StatusOK, sessions)
@@ -462,7 +490,7 @@ func main() {
 		authAPI.GET("/progress", func(c *gin.Context) {
 			progress, err := sessionRepo.GetProgressData(c.Request.Context(), userID(c))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to fetch progress", err)
 				return
 			}
 			c.JSON(http.StatusOK, progress)
@@ -474,13 +502,13 @@ func main() {
 				Score int `json:"score" binding:"required"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				badRequest(c)
 				return
 			}
 
 			score, err := workoutRepo.CreateDinoGameScore(c.Request.Context(), userID(c), input.Score)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to save score", err)
 				return
 			}
 			c.JSON(http.StatusCreated, score)
@@ -489,7 +517,7 @@ func main() {
 		authAPI.GET("/dino-game/high-score", func(c *gin.Context) {
 			highScore, err := workoutRepo.GetDinoGameHighScore(c.Request.Context(), userID(c))
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				serverError(c, "Failed to fetch high score", err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"highScore": highScore})

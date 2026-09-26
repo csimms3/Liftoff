@@ -28,7 +28,7 @@ build:
 
 run: build
 	@echo "Starting server..."
-	./backend/bin/liftoff
+	cd backend && ./bin/liftoff
 
 dev:
 	@echo "Starting server (dev)..."

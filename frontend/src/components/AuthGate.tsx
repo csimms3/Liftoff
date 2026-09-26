@@ -8,6 +8,10 @@ import { ResetPasswordPage } from './ResetPasswordPage'
 import { AdminPanel } from './AdminPanel'
 import App from '../App'
 
+// TODO(email): the backend has no email provider, so reset links are never delivered and
+// the forgot/reset endpoints are not registered. Flip this once emails are sent.
+const PASSWORD_RESET_ENABLED = false
+
 function getResetToken(): string | null {
   const params = new URLSearchParams(window.location.search)
   return params.get('token')
@@ -20,7 +24,7 @@ export function AuthGate() {
   const [resetToken, setResetToken] = useState<string | null>(null)
 
   useEffect(() => {
-    const token = getResetToken()
+    const token = PASSWORD_RESET_ENABLED ? getResetToken() : null
     if (token) {
       setResetToken(token)
       window.history.replaceState({}, '', window.location.pathname)
@@ -72,7 +76,7 @@ export function AuthGate() {
       <AuthLayout>
         <LoginPage
           onSwitchToRegister={() => setShowRegister(true)}
-          onSwitchToForgotPassword={() => setShowForgotPassword(true)}
+          onSwitchToForgotPassword={PASSWORD_RESET_ENABLED ? () => setShowForgotPassword(true) : undefined}
           onSwitchToAdmin={(show) => setShowAdmin(show)}
           isAdminLogin={showAdmin}
         />

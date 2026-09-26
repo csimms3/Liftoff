@@ -4,6 +4,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 func TestGenerateAndValidateToken(t *testing.T) {
@@ -65,5 +67,49 @@ func TestGenerateToken_RememberMe(t *testing.T) {
 
 	if diffLong <= diffShort {
 		t.Errorf("RememberMe token should have longer expiry: short=%v, long=%v", diffShort, diffLong)
+	}
+}
+
+func TestCheckConfig(t *testing.T) {
+	cases := []struct {
+		secret string
+		ok     bool
+	}{
+		{"", false},
+		{"short", false},
+		{"0123456789abcdef0123456789abcdef", true},
+	}
+	for _, c := range cases {
+		t.Setenv("JWT_SECRET", c.secret)
+		if err := CheckConfig(); (err == nil) != c.ok {
+			t.Errorf("CheckConfig() with %d-char secret: err = %v, want ok=%v", len(c.secret), err, c.ok)
+		}
+	}
+}
+
+func TestGenerateToken_NoSecret(t *testing.T) {
+	t.Setenv("JWT_SECRET", "")
+	if _, _, err := GenerateToken("u1", "e@e.com", false); err != ErrNoSecret {
+		t.Errorf("GenerateToken() without secret: err = %v, want ErrNoSecret", err)
+	}
+}
+
+func TestValidateToken_RejectsOtherAlgorithms(t *testing.T) {
+	t.Setenv("JWT_SECRET", "test-secret")
+	claims := Claims{UserID: "u1", RegisteredClaims: jwt.RegisteredClaims{
+		ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+	}}
+	for _, method := range []jwt.SigningMethod{jwt.SigningMethodHS384, jwt.SigningMethodHS512} {
+		s, err := jwt.NewWithClaims(method, claims).SignedString([]byte("test-secret"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := ValidateToken(s); err != ErrInvalidToken {
+			t.Errorf("%s token accepted, want ErrInvalidToken", method.Alg())
+		}
+	}
+	none, _ := jwt.NewWithClaims(jwt.SigningMethodNone, claims).SignedString(jwt.UnsafeAllowNoneSignatureType)
+	if _, err := ValidateToken(none); err != ErrInvalidToken {
+		t.Error("alg=none token accepted")
 	}
 }

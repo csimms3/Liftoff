@@ -35,8 +35,6 @@ Liftoff is a full-stack workout tracking application with a React frontend and G
 ## API Endpoints
 - `POST /api/auth/register` - Register
 - `POST /api/auth/login` - Login
-- `POST /api/auth/forgot-password` - Request reset
-- `POST /api/auth/reset-password` - Reset password
 - `GET /api/auth/me` - Current user (protected)
 - `GET /api/workouts` - List workouts (protected)
 - `POST /api/workouts` - Create workout (protected)
@@ -62,7 +60,7 @@ Liftoff is a full-stack workout tracking application with a React frontend and G
 3. Access app: http://localhost:5173 (Vite proxies /api to backend)
 
 ## Current Status
-- User auth (register, login, forgot/reset password, session timeout)
+- User auth (register, login, session timeout; password reset is disabled until email sending exists)
 - Data isolation by user_id
 - Core workout, exercise, session, progress features
 - Exercise templates and progress analytics

@@ -124,7 +124,8 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onSwit
           </button>
         </form>
 
-        {showDevLogin && (
+        {/* Dev-only: stripped from production builds */}
+        {import.meta.env.DEV && showDevLogin && (
           <div className="auth-dev-login" style={{ marginTop: '1rem', padding: '0.75rem', background: 'var(--bg-tertiary)', borderRadius: 8, fontSize: '0.85rem' }}>
             <p style={{ marginBottom: '0.5rem', color: 'var(--text-secondary)' }}>Paste full API login response (from curl):</p>
             <textarea
@@ -144,7 +145,7 @@ export function LoginPage({ onSwitchToRegister, onSwitchToForgotPassword, onSwit
             </div>
           </div>
         )}
-        {!showDevLogin && (
+        {import.meta.env.DEV && !showDevLogin && (
           <button type="button" className="auth-link auth-link-small" onClick={() => setShowDevLogin(true)} style={{ marginTop: '0.5rem', display: 'block' }}>
             Dev: login with API token
           </button>

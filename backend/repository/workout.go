@@ -1027,7 +1027,7 @@ func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, userI
 	}
 
 	if template == nil {
-		return nil, fmt.Errorf("template not found: %s", templateID)
+		return nil, fmt.Errorf("%w: %s", ErrTemplateNotFound, templateID)
 	}
 
 	// Create the workout
