@@ -9,7 +9,6 @@ import (
 	"database/sql"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -47,11 +46,6 @@ type Database struct {
  * - error: Connection error if both databases fail
  */
 func NewDatabase() (*Database, error) {
-	// Load environment variables from .env file if present
-	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
-	}
-
 	// Try PostgreSQL connection first
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {

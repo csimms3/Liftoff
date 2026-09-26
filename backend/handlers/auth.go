@@ -173,7 +173,7 @@ type ResetPasswordRequest struct {
 	NewPassword string `json:"newPassword" binding:"required"`
 }
 
-// ForgotPassword initiates password reset - sends email with reset link (or logs in dev)
+// ForgotPassword initiates password reset. Not routed until email sending exists.
 func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 	var req ForgotPasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -218,14 +218,9 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		frontendURL = "http://localhost:5173"
 	}
 	resetLink := frontendURL + "/reset-password?token=" + plainToken
-
-	// In production, send email. For dev, log the link.
-	if os.Getenv("SMTP_HOST") != "" {
-		// TODO: Integrate with email service (SMTP, SendGrid, etc.)
-		log.Printf("Password reset for %s: %s", email, resetLink)
-	} else {
-		log.Printf("Password reset link for %s (dev mode): %s", email, resetLink)
-	}
+	// TODO(email): send resetLink to the user. Never log it: the token in it resets
+	// the account's password. The route is unregistered until this is done.
+	_ = resetLink
 
 	c.JSON(http.StatusOK, gin.H{"message": "If an account exists, a reset link has been sent"})
 }

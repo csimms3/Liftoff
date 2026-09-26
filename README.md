@@ -4,7 +4,7 @@ A full-stack workout tracking application designed to help users create, track, 
 
 ## Features
 
-- **User Authentication**: Register, login, forgot password, reset password, session timeout
+- **User Authentication**: Register, login, session timeout (password reset is disabled until email sending is wired up)
 - **Workout Management**: Create, edit, and delete workout plans (per-user)
 - **Exercise Tracking**: Add exercises with sets, reps, and weights
 - **Exercise Templates**: Quick-add common exercises from predefined templates
@@ -73,9 +73,12 @@ Starts backend (8080) and frontend (5173). Open http://localhost:5173. Press Ctr
 ### Backend Setup
 ```bash
 cd backend
+cp .env.example .env   # then set JWT_SECRET: openssl rand -hex 32
 go mod download
-go run main.go
+go run .
 ```
+Run the backend from `backend/`: `.env` and the SQLite `liftoff.db` are read from the
+current directory. `scripts/boot.sh` does this for you.
 
 The backend will start on `http://localhost:8080`
 
@@ -102,17 +105,19 @@ There is no default admin account. To make a user an admin, set the flag by hand
 UPDATE users SET is_admin = true WHERE email = 'you@example.com';
 ```
 
-### Auth (optional env)
-- `JWT_SECRET` - Secret for signing tokens (default: dev secret)
+### Configuration (env or `backend/.env`, see `backend/.env.example`)
+- `JWT_SECRET` - **Required**, at least 32 characters (`openssl rand -hex 32`). The server refuses to start without it; `scripts/boot.sh` generates one into `backend/.env` for local dev
 - `JWT_EXPIRY_MINUTES` - Session token expiry (default: 15)
+- `CORS_ALLOWED_ORIGINS` - Comma-separated origins allowed cross-origin (default: none; not needed same-origin or in dev)
+- `TRUSTED_PROXIES` - Comma-separated proxy IPs/CIDRs trusted for `X-Forwarded-For` (default: none)
+
+Login is limited to 10 requests/minute and registration to 5/hour per client IP.
 
 ## API Endpoints
 
 ### Authentication (public)
 - `POST /api/auth/register` - Register new user
 - `POST /api/auth/login` - Login
-- `POST /api/auth/forgot-password` - Request password reset email
-- `POST /api/auth/reset-password` - Reset password with token
 - `GET /api/auth/me` - Get current user (requires `Authorization: Bearer <token>`)
 
 ### Workouts (require auth)
