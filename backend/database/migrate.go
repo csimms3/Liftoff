@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"liftoff/backend/auth"
 	"liftoff/backend/migrations"
 
 	"github.com/jackc/pgx/v5"
@@ -19,8 +20,8 @@ import (
 // admin@liftoff.local with a public password; migration 006 locks it.
 const legacyOwnerID = "00000000-0000-0000-0000-000000000001"
 
-// lockedPasswordHash is not a valid bcrypt hash, so CheckPassword always fails for it.
-const lockedPasswordHash = "!locked"
+// legacyAdminEmail is the email older versions forced the public password onto.
+const legacyAdminEmail = "admin@liftoff.local"
 
 // migrationLockID is the pg_advisory_lock key that serializes concurrent migrators.
 const migrationLockID = 7_311_900_001
@@ -181,7 +182,7 @@ func sqliteUserDataIsolation(tx *sql.Tx) error {
 		return nil
 	}
 	if _, err := tx.Exec(`INSERT OR IGNORE INTO users (id, email, password_hash, created_at)
-		VALUES (?, 'admin@liftoff.local', ?, CURRENT_TIMESTAMP)`, legacyOwnerID, lockedPasswordHash); err != nil {
+		VALUES (?, 'legacy-owner@liftoff.local', ?, CURRENT_TIMESTAMP)`, legacyOwnerID, auth.LockedPasswordHash); err != nil {
 		return fmt.Errorf("create legacy owner: %w", err)
 	}
 	for _, table := range tables {
@@ -203,9 +204,14 @@ func sqliteAdminFlag(tx *sql.Tx) error {
 			return err
 		}
 	}
-	if _, err := tx.Exec("UPDATE users SET password_hash = ?, is_admin = 0 WHERE id = ?", lockedPasswordHash, legacyOwnerID); err != nil {
+	// Match by email too: a user who registered admin@liftoff.local before the seed
+	// existed had the public password forced onto their row on every boot.
+	const seeded = "(id = ? OR LOWER(email) = ?)"
+	if _, err := tx.Exec("DELETE FROM password_reset_tokens WHERE user_id IN (SELECT id FROM users WHERE "+seeded+")",
+		legacyOwnerID, legacyAdminEmail); err != nil {
 		return err
 	}
-	_, err = tx.Exec("DELETE FROM password_reset_tokens WHERE user_id = ?", legacyOwnerID)
+	_, err = tx.Exec("UPDATE users SET password_hash = ?, is_admin = 0 WHERE "+seeded,
+		auth.LockedPasswordHash, legacyOwnerID, legacyAdminEmail)
 	return err
 }

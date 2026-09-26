@@ -192,8 +192,9 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "If an account exists, a reset link has been sent"})
 		return
 	}
-	// Always return success to prevent email enumeration
-	if user == nil {
+	// Always return success to prevent email enumeration. Locked accounts can't be
+	// reset: that would hand over whatever data they own.
+	if user == nil || user.PasswordHash == auth.LockedPasswordHash {
 		c.JSON(http.StatusOK, gin.H{"message": "If an account exists, a reset link has been sent"})
 		return
 	}

@@ -226,3 +226,65 @@ func TestMigrateSQLite_PreAccountRowsGetLockedOwner(t *testing.T) {
 		t.Errorf("legacy owner hash = %q, want locked", hash)
 	}
 }
+
+// Someone registered admin@liftoff.local (random id) before the seed existed; the old
+// boot code then forced Admin123! onto that row. It must be locked, and the owner
+// for pre-account rows must still be created without an email collision.
+func TestMigratePostgres_LocksAdminEmailWithOtherID(t *testing.T) {
+	pool := testdb.PostgresEmpty(t)
+	for _, name := range []string{"001_initial_schema.sql", "002_users.sql"} {
+		body, _ := migrations.FS.ReadFile(name)
+		testdb.Exec(t, pool, string(body))
+	}
+	hash, _ := auth.HashPassword("Admin123!")
+	testdb.Exec(t, pool,
+		`INSERT INTO users (id, email, password_hash) VALUES ('rand-id', 'Admin@liftoff.local', '`+hash+`')`,
+		`INSERT INTO workouts (id, name) VALUES ('w1', 'Pre-accounts')`,
+	)
+
+	if err := database.MigratePostgres(context.Background(), pool); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	var got string
+	pool.QueryRow(context.Background(), "SELECT password_hash FROM users WHERE id = 'rand-id'").Scan(&got)
+	if auth.CheckPassword("Admin123!", got) {
+		t.Error("admin@liftoff.local with a non-sentinel id still accepts Admin123!")
+	}
+	if n := pgCount(t, pool, "SELECT COUNT(*) FROM workouts WHERE user_id = $1", legacyOwnerID); n != 1 {
+		t.Errorf("pre-account workout not assigned to legacy owner (%d)", n)
+	}
+}
+
+func TestMigrateSQLite_LocksAdminEmailWithOtherID(t *testing.T) {
+	raw, path := openRawSQLite(t)
+	hash, _ := auth.HashPassword("Admin123!")
+	sqliteExec(t, raw,
+		`CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`CREATE TABLE workouts (id TEXT PRIMARY KEY, name TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+		`INSERT INTO users (id, email, password_hash) VALUES ('rand-id', 'admin@liftoff.local', '`+hash+`')`,
+		`INSERT INTO workouts (id, name) VALUES ('w1', 'Pre-accounts')`,
+	)
+	raw.Close()
+
+	db, err := database.OpenSQLite(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer db.Close()
+	s := db.GetSQLite()
+
+	var got, owner string
+	var ownerExists int
+	s.QueryRow("SELECT password_hash FROM users WHERE id = 'rand-id'").Scan(&got)
+	s.QueryRow("SELECT user_id FROM workouts WHERE id = 'w1'").Scan(&owner)
+	s.QueryRow("SELECT COUNT(*) FROM users WHERE id = ?", legacyOwnerID).Scan(&ownerExists)
+	if auth.CheckPassword("Admin123!", got) {
+		t.Error("admin@liftoff.local with a non-sentinel id still accepts Admin123!")
+	}
+	if owner != legacyOwnerID || ownerExists != 1 {
+		t.Errorf("w1 owner = %q (owner row exists: %d), want existing legacy owner", owner, ownerExists)
+	}
+}
