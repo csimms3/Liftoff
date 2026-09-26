@@ -3,9 +3,10 @@
 *.sqlite
 *.sqlite3
 
-# Build artifacts
+# Build artifacts (`go build` in backend/ names the binary after the directory)
 backend/bin/
 backend/liftoff
+backend/backend
 
 # Dependencies
 frontend/node_modules/
