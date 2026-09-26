@@ -60,8 +60,8 @@ func TestGenerateToken_RememberMe(t *testing.T) {
 	_, expiryLong, _ := GenerateToken("u1", "e@e.com", true)
 
 	// Remember me should have much longer expiry (default 30 days vs 15 min)
-	diffShort := expiryShort.Sub(time.Now())
-	diffLong := expiryLong.Sub(time.Now())
+	diffShort := time.Until(expiryShort)
+	diffLong := time.Until(expiryLong)
 
 	if diffLong <= diffShort {
 		t.Errorf("RememberMe token should have longer expiry: short=%v, long=%v", diffShort, diffLong)

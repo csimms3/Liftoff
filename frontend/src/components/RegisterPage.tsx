@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useAuth } from '../context/AuthContext'
+import { useAuth } from '../context/useAuth'
 import './AuthPages.css'
 
 interface RegisterPageProps {
@@ -37,7 +37,7 @@ export function RegisterPage({ onSwitchToLogin }: RegisterPageProps) {
       setError('Password must contain at least one capital letter')
       return
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?~`]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(password)) {
       setError('Password must contain at least one special character')
       return
     }

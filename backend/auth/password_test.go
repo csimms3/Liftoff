@@ -6,10 +6,10 @@ import (
 
 func TestValidatePassword(t *testing.T) {
 	tests := []struct {
-		name    string
+		name     string
 		password string
-		wantErr bool
-		err     error
+		wantErr  bool
+		err      error
 	}{
 		{"valid password", "Password1!", false, nil},
 		{"valid with symbols", "MyP@ssw0rd!", false, nil},

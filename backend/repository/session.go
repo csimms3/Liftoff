@@ -98,7 +98,7 @@ func (r *SessionRepository) GetActiveSessionWithExercises(ctx context.Context, u
 			return nil, fmt.Errorf("failed to get exercise: %w", err)
 		}
 		se.Exercise = exercise
-		
+
 		// Get sets for this exercise
 		sets, err := r.GetExerciseSets(ctx, se.ID)
 		if err != nil {

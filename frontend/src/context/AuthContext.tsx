@@ -1,17 +1,7 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { getSessionTimeoutMinutes, setSessionTimeoutMinutes } from './sessionTimeout'
+import { AuthContext } from './useAuth'
 
-const SESSION_TIMEOUT_KEY = 'liftoff-session-timeout-minutes'
-const DEFAULT_SESSION_TIMEOUT = 15
-
-export function getSessionTimeoutMinutes(): number {
-  const stored = localStorage.getItem(SESSION_TIMEOUT_KEY)
-  const parsed = parseInt(stored || '', 10)
-  return Number.isFinite(parsed) && parsed >= 1 ? parsed : DEFAULT_SESSION_TIMEOUT
-}
-
-export function setSessionTimeoutMinutes(minutes: number): void {
-  localStorage.setItem(SESSION_TIMEOUT_KEY, String(Math.max(1, minutes)))
-}
 
 export interface User {
   id: string
@@ -28,7 +18,7 @@ export interface AuthState {
   isAdmin: boolean
 }
 
-interface AuthContextType extends AuthState {
+export interface AuthContextType extends AuthState {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   loginWithToken: (token: string, user: User, expiresAt: string) => void
   register: (email: string, password: string) => Promise<void>
@@ -72,7 +62,6 @@ function storeAuth(data: StoredAuth | null) {
   }
 }
 
-const AuthContext = createContext<AuthContextType | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -235,15 +224,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext)
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider')
-  return ctx
-}
-
-export function getAuthToken(): string | null {
-  const stored = getStoredAuth()
-  return stored?.token ?? null
 }

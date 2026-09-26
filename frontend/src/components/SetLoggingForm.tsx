@@ -11,7 +11,7 @@ interface SetLoggingFormProps {
 export function SetLoggingForm({ set, setIndex, onLogSet, loading = false }: SetLoggingFormProps) {
   const [reps, setReps] = useState(set.reps.toString())
   const [weight, setWeight] = useState(set.weight.toString())
-  const [notes, setNotes] = useState(set.notes || '')
+  const [notes] = useState(set.notes || '')
   const [isLogging, setIsLogging] = useState(false)
   const [showForm, setShowForm] = useState(false)
 

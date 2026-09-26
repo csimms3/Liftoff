@@ -13,8 +13,8 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
   const [gameState, setGameState] = useState<'waiting' | 'playing' | 'gameOver'>('waiting');
   const [score, setScore] = useState(0);
   const [highScore, setHighScore] = useState(0);
-  const gameLoopRef = useRef<number>();
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
+  const highScoreRef = useRef(0);
   
   // Game state
   const dinoRef = useRef({ x: 50, y: 150, velocityY: 0, isJumping: false });
@@ -34,6 +34,11 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
   }, [gameState]);
 
   // Keyboard controls
+  // The draw loop reads the high score through a ref; its closure would see a stale value.
+  useEffect(() => {
+    highScoreRef.current = highScore;
+  }, [highScore]);
+
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
       if (e.code === 'Space' || e.key === 'ArrowUp') {
@@ -94,7 +99,7 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
 
       // Draw eye
       ctx.fillStyle = '#fff';
-      timeRef.current < 300 && ctx.fillRect(dino.x + 20, dino.y + 5, 5, 5);
+      if (timeRef.current < 300) ctx.fillRect(dino.x + 20, dino.y + 5, 5, 5);
       timeRef.current = (timeRef.current + 16.67) % 600;
       
       // Generate obstacles
@@ -120,7 +125,7 @@ export function DinoGame({ isOpen, onClose }: DinoGameProps) {
         ) {
           setGameState('gameOver');
           // Save score if it's a new high score
-          if (scoreRef.current > highScore) {
+          if (scoreRef.current > highScoreRef.current) {
             apiService.saveDinoGameScore(scoreRef.current).catch(console.error);
             setHighScore(scoreRef.current);
           }

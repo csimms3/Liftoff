@@ -6,7 +6,7 @@ import { AuthGate } from './components/AuthGate'
 
 // Suppress React DevTools comment
 if (typeof window !== 'undefined') {
-  (window as Window & { __REACT_DEVTOOLS_GLOBAL_HOOK__: { isDisabled: boolean } }).__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }
+  (window as unknown as { __REACT_DEVTOOLS_GLOBAL_HOOK__: { isDisabled: boolean } }).__REACT_DEVTOOLS_GLOBAL_HOOK__ = { isDisabled: true }
 }
 
 createRoot(document.getElementById('root')!).render(
