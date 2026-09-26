@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,53 +27,76 @@ func NewSessionRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool) *Ses
 	return &SessionRepository{db: db, sqlite: nil, useSQLite: false}
 }
 
-// WorkoutSession operations
-func (r *SessionRepository) CreateSession(ctx context.Context, userID, workoutID string) (*models.WorkoutSession, error) {
-	if r.useSQLite {
-		return r.createSessionSQLite(ctx, userID, workoutID)
+// StartSession starts a workout session for userID's workout, with a session
+// exercise and planned sets for each of the workout's exercises. Any session the
+// user still has active is ended first: a user has at most one active session.
+// It all happens in one transaction, and nothing is written unless the workout
+// belongs to the user (ErrNotFound otherwise).
+func (r *SessionRepository) StartSession(ctx context.Context, userID, workoutID string) (*models.WorkoutSession, error) {
+	workoutRepo := NewWorkoutRepository(r.db, r.sqlite, r.useSQLite)
+	workout, err := workoutRepo.GetWorkout(ctx, userID, workoutID)
+	if errors.Is(err, ErrNotFound) {
+		return nil, ErrNotFound
 	}
-	return r.createSessionPostgres(ctx, userID, workoutID)
-}
+	if err != nil {
+		return nil, fmt.Errorf("get workout: %w", err)
+	}
 
-// CreateSessionWithExercises creates a session and initializes all exercises with sets
-func (r *SessionRepository) CreateSessionWithExercises(ctx context.Context, userID, workoutID string) (*models.WorkoutSession, error) {
-	// Create the session first
-	session, err := r.CreateSession(ctx, userID, workoutID)
+	err = withTx(ctx, r.db, r.sqlite, r.useSQLite, func(tx tx) error {
+		if !r.useSQLite {
+			// Serialize concurrent starts by the same user (SQLite serializes writers).
+			if err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext(?))`, "session:"+userID); err != nil {
+				return fmt.Errorf("lock: %w", err)
+			}
+		}
+		now := time.Now()
+		// End the previous active session(s) at their last logged activity, so a
+		// session left open doesn't show a days-long duration in history. SQLite
+		// stores timestamps as text that may carry different UTC offsets, so it
+		// orders by julianday() rather than comparing the strings.
+		order := "es.updated_at"
+		if r.useSQLite {
+			order = "julianday(es.updated_at)"
+		}
+		if err := tx.Exec(ctx, `
+			UPDATE workout_sessions
+			SET is_active = ?, updated_at = ?,
+				ended_at = COALESCE((
+					SELECT es.updated_at FROM exercise_sets es
+					JOIN session_exercises se ON es.session_exercise_id = se.id
+					WHERE se.session_id = workout_sessions.id
+					ORDER BY `+order+` DESC LIMIT 1
+				), started_at)
+			WHERE user_id = ? AND is_active = ?`, false, now, userID, true); err != nil {
+			return fmt.Errorf("end previous session: %w", err)
+		}
+
+		sessionID := uuid.New().String()
+		if err := tx.Exec(ctx, `
+			INSERT INTO workout_sessions (id, user_id, workout_id, started_at, is_active, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`, sessionID, userID, workoutID, now, true, now, now); err != nil {
+			return fmt.Errorf("create session: %w", err)
+		}
+		for _, exercise := range workout.Exercises {
+			seID := uuid.New().String()
+			if err := tx.Exec(ctx, `
+				INSERT INTO session_exercises (id, session_id, exercise_id, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?)`, seID, sessionID, exercise.ID, now, now); err != nil {
+				return fmt.Errorf("create session exercise: %w", err)
+			}
+			for i := 0; i < exercise.Sets; i++ {
+				if err := tx.Exec(ctx, `
+					INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?)`, uuid.New().String(), seID, exercise.Reps, exercise.Weight, false, now, now); err != nil {
+					return fmt.Errorf("create exercise set: %w", err)
+				}
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	// Get the workout to access its exercises (verify ownership)
-	workoutRepo := NewWorkoutRepository(r.db, r.sqlite, r.useSQLite)
-	workout, err := workoutRepo.GetWorkout(ctx, userID, workoutID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get workout: %w", err)
-	}
-
-	// Create session exercises and sets for each exercise
-	for _, exercise := range workout.Exercises {
-		// Create session exercise (no userID check - we're creating)
-		sessionExercise, err := r.CreateSessionExercise(ctx, "", session.ID, exercise.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create session exercise: %w", err)
-		}
-
-		// Create sets for this exercise (no userID - internal create)
-		for i := 0; i < exercise.Sets; i++ {
-			set := &models.ExerciseSet{
-				SessionExerciseID: sessionExercise.ID,
-				Reps:              exercise.Reps,
-				Weight:            exercise.Weight,
-				Completed:         false,
-			}
-			err = r.CreateExerciseSet(ctx, "", set)
-			if err != nil {
-				return nil, fmt.Errorf("failed to create exercise set: %w", err)
-			}
-		}
-	}
-
-	// Return the session with exercises populated
 	return r.GetActiveSessionWithExercises(ctx, userID)
 }
 
@@ -198,53 +222,6 @@ func (r *SessionRepository) getCompletedSessionsSQLite(ctx context.Context, user
 	return sessions, nil
 }
 
-func (r *SessionRepository) createSessionPostgres(ctx context.Context, userID, workoutID string) (*models.WorkoutSession, error) {
-	id := uuid.New().String()
-	now := time.Now()
-
-	query := `
-		INSERT INTO workout_sessions (id, user_id, workout_id, started_at, is_active, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING id, user_id, workout_id, started_at, ended_at, is_active, created_at, updated_at
-	`
-
-	var session models.WorkoutSession
-	err := r.db.QueryRow(ctx, query, id, userID, workoutID, now, true, now, now).Scan(
-		&session.ID, &session.UserID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
-		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
-	}
-
-	return &session, nil
-}
-
-func (r *SessionRepository) createSessionSQLite(ctx context.Context, userID, workoutID string) (*models.WorkoutSession, error) {
-	id := uuid.New().String()
-	now := time.Now()
-
-	query := `
-		INSERT INTO workout_sessions (id, user_id, workout_id, started_at, is_active, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`
-
-	_, err := r.sqlite.ExecContext(ctx, query, id, userID, workoutID, now, true, now, now)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create session: %w", err)
-	}
-
-	return &models.WorkoutSession{
-		ID:        id,
-		UserID:    userID,
-		WorkoutID: workoutID,
-		StartedAt: now,
-		IsActive:  true,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}, nil
-}
-
 func (r *SessionRepository) GetActiveSession(ctx context.Context, userID string) (*models.WorkoutSession, error) {
 	if r.useSQLite {
 		return r.getActiveSessionSQLite(ctx, userID)
@@ -365,6 +342,9 @@ func (r *SessionRepository) endSessionPostgres(ctx context.Context, userID, id s
 		&session.ID, &session.UserID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
 		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to end session: %w", err)
 	}
@@ -385,7 +365,7 @@ func (r *SessionRepository) endSessionSQLite(ctx context.Context, userID, id str
 	}
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return nil, fmt.Errorf("session not found or access denied")
+		return nil, ErrNotFound
 	}
 
 	// Get the updated session
@@ -458,18 +438,31 @@ func (r *SessionRepository) getSessionsSQLite(ctx context.Context) ([]*models.Wo
 }
 
 // SessionExercise operations
+
+// CreateSessionExercise adds an exercise to the user's session. Both the session
+// and the exercise must belong to userID (ErrNotFound otherwise).
 func (r *SessionRepository) CreateSessionExercise(ctx context.Context, userID, sessionID, exerciseID string) (*models.SessionExercise, error) {
-	// Verify session belongs to user (when userID is provided - skip for internal CreateSessionWithExercises by passing "")
-	if userID != "" {
-		session, err := r.getSessionForUser(ctx, userID, sessionID)
-		if err != nil || session == nil {
-			return nil, fmt.Errorf("session not found or access denied")
-		}
+	session, err := r.getSessionForUser(ctx, userID, sessionID)
+	if err != nil || session == nil {
+		return nil, ErrNotFound
+	}
+	if !r.ownsExercise(ctx, userID, exerciseID) {
+		return nil, ErrNotFound
 	}
 	if r.useSQLite {
 		return r.createSessionExerciseSQLite(ctx, sessionID, exerciseID)
 	}
 	return r.createSessionExercisePostgres(ctx, sessionID, exerciseID)
+}
+
+// ownsExercise reports whether exerciseID belongs to one of userID's workouts.
+func (r *SessionRepository) ownsExercise(ctx context.Context, userID, exerciseID string) bool {
+	query := `SELECT 1 FROM exercises e JOIN workouts w ON e.workout_id = w.id WHERE e.id = ? AND w.user_id = ?`
+	var one int
+	if r.useSQLite {
+		return r.sqlite.QueryRowContext(ctx, query, exerciseID, userID).Scan(&one) == nil
+	}
+	return r.db.QueryRow(ctx, rebind(query), exerciseID, userID).Scan(&one) == nil
 }
 
 func (r *SessionRepository) getSessionForUser(ctx context.Context, userID, sessionID string) (*models.WorkoutSession, error) {
@@ -613,10 +606,8 @@ func (r *SessionRepository) getSessionExercisesSQLite(ctx context.Context, sessi
 
 // ExerciseSet operations
 func (r *SessionRepository) CreateExerciseSet(ctx context.Context, userID string, set *models.ExerciseSet) error {
-	if userID != "" {
-		if !r.verifySessionExerciseAccess(ctx, userID, set.SessionExerciseID) {
-			return fmt.Errorf("session exercise not found or access denied")
-		}
+	if !r.verifySessionExerciseAccess(ctx, userID, set.SessionExerciseID) {
+		return ErrNotFound
 	}
 	if r.useSQLite {
 		return r.createExerciseSetSQLite(ctx, set)
@@ -766,20 +757,18 @@ func (r *SessionRepository) getExerciseSetsSQLite(ctx context.Context, sessionEx
 }
 
 func (r *SessionRepository) UpdateExerciseSet(ctx context.Context, userID string, set *models.ExerciseSet) error {
-	if userID != "" {
-		sessionExerciseID := set.SessionExerciseID
-		if sessionExerciseID == "" {
-			// Fetch from DB to get SessionExerciseID for verification
-			seID, err := r.getSessionExerciseIDForSet(ctx, set.ID)
-			if err != nil {
-				return fmt.Errorf("exercise set not found or access denied")
-			}
-			sessionExerciseID = seID
-			set.SessionExerciseID = seID
+	sessionExerciseID := set.SessionExerciseID
+	if sessionExerciseID == "" {
+		// Look up the set's session exercise to check ownership.
+		seID, err := r.getSessionExerciseIDForSet(ctx, set.ID)
+		if err != nil {
+			return ErrNotFound
 		}
-		if !r.verifySessionExerciseAccess(ctx, userID, sessionExerciseID) {
-			return fmt.Errorf("exercise set not found or access denied")
-		}
+		sessionExerciseID = seID
+		set.SessionExerciseID = seID
+	}
+	if !r.verifySessionExerciseAccess(ctx, userID, sessionExerciseID) {
+		return ErrNotFound
 	}
 	if r.useSQLite {
 		return r.updateExerciseSetSQLite(ctx, set)
@@ -818,8 +807,8 @@ func (r *SessionRepository) updateExerciseSetSQLite(ctx context.Context, set *mo
 }
 
 func (r *SessionRepository) CompleteExerciseSet(ctx context.Context, userID, sessionExerciseID string, setIndex int) error {
-	if userID != "" && !r.verifySessionExerciseAccess(ctx, userID, sessionExerciseID) {
-		return fmt.Errorf("session exercise not found or access denied")
+	if !r.verifySessionExerciseAccess(ctx, userID, sessionExerciseID) {
+		return ErrNotFound
 	}
 	// Get all sets for this session exercise
 	sets, err := r.GetExerciseSets(ctx, sessionExerciseID)
@@ -829,7 +818,7 @@ func (r *SessionRepository) CompleteExerciseSet(ctx context.Context, userID, ses
 
 	// Check if setIndex is valid
 	if setIndex < 0 || setIndex >= len(sets) {
-		return fmt.Errorf("invalid set index: %d", setIndex)
+		return fmt.Errorf("%w: %d", ErrInvalidSetIndex, setIndex)
 	}
 
 	// Mark the specified set as completed

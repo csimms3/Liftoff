@@ -97,7 +97,9 @@ func newSQLiteDatabase() (*Database, error) {
 // OpenSQLite opens (creating if needed) the SQLite database at path and brings its
 // schema up to date.
 func OpenSQLite(path string) (*Database, error) {
-	db, err := sql.Open("sqlite3", path)
+	// Immediate transactions take the write lock up front, so two transactions that
+	// read before writing wait for each other instead of failing with SQLITE_BUSY.
+	db, err := sql.Open("sqlite3", path+"?_txlock=immediate")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}

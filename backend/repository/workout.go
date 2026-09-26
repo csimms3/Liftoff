@@ -3,12 +3,14 @@ package repository
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
 	"liftoff/backend/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -313,6 +315,9 @@ func (r *WorkoutRepository) getWorkoutPostgres(ctx context.Context, userID, id s
 	err := r.db.QueryRow(ctx, query, id, userID).Scan(
 		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workout: %w", err)
 	}
@@ -344,6 +349,9 @@ func (r *WorkoutRepository) getWorkoutSQLite(ctx context.Context, userID, id str
 	err := r.sqlite.QueryRowContext(ctx, query, id, userID).Scan(
 		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get workout: %w", err)
 	}

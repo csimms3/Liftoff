@@ -40,44 +40,51 @@ func NewRoutineRepository(db *pgxpool.Pool, sqlite *sql.DB, useSQLite bool, work
 	return &RoutineRepository{db: db, sqlite: nil, useSQLite: false, workout: workout}
 }
 
-func (r *RoutineRepository) CreateRoutine(ctx context.Context, userID, name, description string) (*models.Routine, error) {
+// CreateRoutine creates a routine with the given workouts in order, in one
+// transaction. Every workout must belong to userID (ErrNotFound otherwise).
+func (r *RoutineRepository) CreateRoutine(ctx context.Context, userID, name, description string, workoutIDs []string) (*models.Routine, error) {
 	id := uuid.New().String()
+	err := withTx(ctx, r.db, r.sqlite, r.useSQLite, func(tx tx) error {
+		if err := checkWorkoutsOwned(ctx, tx, userID, workoutIDs); err != nil {
+			return err
+		}
+		now := time.Now()
+		if err := tx.Exec(ctx, `INSERT INTO routines (id, user_id, name, description, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)`, id, userID, name, description, now, now); err != nil {
+			return fmt.Errorf("create routine: %w", err)
+		}
+		return replaceRoutineWorkouts(ctx, tx, id, workoutIDs)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return r.GetRoutine(ctx, userID, id)
+}
+
+// checkWorkoutsOwned returns ErrNotFound unless every id is one of userID's workouts.
+func checkWorkoutsOwned(ctx context.Context, tx tx, userID string, workoutIDs []string) error {
+	for _, wid := range workoutIDs {
+		var one int
+		if err := tx.QueryRow(ctx, `SELECT 1 FROM workouts WHERE id = ? AND user_id = ?`, []any{wid, userID}, &one); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// replaceRoutineWorkouts sets the routine's workouts to workoutIDs, in order.
+func replaceRoutineWorkouts(ctx context.Context, tx tx, routineID string, workoutIDs []string) error {
+	if err := tx.Exec(ctx, `DELETE FROM routine_workouts WHERE routine_id = ?`, routineID); err != nil {
+		return fmt.Errorf("clear routine workouts: %w", err)
+	}
 	now := time.Now()
-	if r.useSQLite {
-		return r.createRoutineSQLite(ctx, id, userID, name, description, now)
+	for i, wid := range workoutIDs {
+		if err := tx.Exec(ctx, `INSERT INTO routine_workouts (id, routine_id, workout_id, slot_order, created_at, updated_at)
+			VALUES (?, ?, ?, ?, ?, ?)`, uuid.New().String(), routineID, wid, i+1, now, now); err != nil {
+			return fmt.Errorf("add routine workout: %w", err)
+		}
 	}
-	return r.createRoutinePostgres(ctx, id, userID, name, description, now)
-}
-
-func (r *RoutineRepository) createRoutinePostgres(ctx context.Context, id, userID, name, description string, now time.Time) (*models.Routine, error) {
-	query := `INSERT INTO routines (id, user_id, name, description, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-		RETURNING id, user_id, name, description, created_at, updated_at`
-	var routine models.Routine
-	err := r.db.QueryRow(ctx, query, id, userID, name, description, now, now).Scan(
-		&routine.ID, &routine.UserID, &routine.Name, &routine.Description, &routine.CreatedAt, &routine.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create routine: %w", err)
-	}
-	return &routine, nil
-}
-
-func (r *RoutineRepository) createRoutineSQLite(ctx context.Context, id, userID, name, description string, now time.Time) (*models.Routine, error) {
-	query := `INSERT INTO routines (id, user_id, name, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`
-	_, err := r.sqlite.ExecContext(ctx, query, id, userID, name, description, now, now)
-	if err != nil {
-		return nil, fmt.Errorf("create routine: %w", err)
-	}
-	return &models.Routine{
-		ID:          id,
-		UserID:      userID,
-		Name:        name,
-		Description: description,
-		CreatedAt:   now,
-		UpdatedAt:   now,
-	}, nil
+	return nil
 }
 
 func (r *RoutineRepository) GetRoutines(ctx context.Context, userID string) ([]*models.Routine, error) {
@@ -224,15 +231,27 @@ func (r *RoutineRepository) getRoutineSQLite(ctx context.Context, userID, id str
 	return &routine, nil
 }
 
-func (r *RoutineRepository) UpdateRoutine(ctx context.Context, userID, id, name, description string) error {
-	if r.useSQLite {
-		_, err := r.sqlite.ExecContext(ctx, `UPDATE routines SET name = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
-			name, description, time.Now(), id, userID)
-		return err
-	}
-	_, err := r.db.Exec(ctx, `UPDATE routines SET name = $1, description = $2, updated_at = $3 WHERE id = $4 AND user_id = $5`,
-		name, description, time.Now(), id, userID)
-	return err
+// UpdateRoutine sets the routine's name and description and, when workoutIDs is
+// non-nil, replaces its workouts, all in one transaction. The routine and every
+// workout must belong to userID (ErrNotFound otherwise).
+func (r *RoutineRepository) UpdateRoutine(ctx context.Context, userID, id, name, description string, workoutIDs []string) error {
+	return withTx(ctx, r.db, r.sqlite, r.useSQLite, func(tx tx) error {
+		var one int
+		if err := tx.QueryRow(ctx, `SELECT 1 FROM routines WHERE id = ? AND user_id = ?`, []any{id, userID}, &one); err != nil {
+			return err
+		}
+		if err := tx.Exec(ctx, `UPDATE routines SET name = ?, description = ?, updated_at = ? WHERE id = ? AND user_id = ?`,
+			name, description, time.Now(), id, userID); err != nil {
+			return fmt.Errorf("update routine: %w", err)
+		}
+		if workoutIDs == nil {
+			return nil
+		}
+		if err := checkWorkoutsOwned(ctx, tx, userID, workoutIDs); err != nil {
+			return err
+		}
+		return replaceRoutineWorkouts(ctx, tx, id, workoutIDs)
+	})
 }
 
 func (r *RoutineRepository) DeleteRoutine(ctx context.Context, userID, id string) error {
@@ -242,57 +261,6 @@ func (r *RoutineRepository) DeleteRoutine(ctx context.Context, userID, id string
 	}
 	_, err := r.db.Exec(ctx, `DELETE FROM routines WHERE id = $1 AND user_id = $2`, id, userID)
 	return err
-}
-
-func (r *RoutineRepository) AddWorkoutToRoutine(ctx context.Context, userID, routineID, workoutID string, slotOrder int) error {
-	if r.useSQLite {
-		return r.addWorkoutToRoutineSQLite(ctx, userID, routineID, workoutID, slotOrder)
-	}
-	return r.addWorkoutToRoutinePostgres(ctx, userID, routineID, workoutID, slotOrder)
-}
-
-func (r *RoutineRepository) addWorkoutToRoutinePostgres(ctx context.Context, userID, routineID, workoutID string, slotOrder int) error {
-	if _, err := r.getRoutinePostgres(ctx, userID, routineID); err != nil {
-		return err
-	}
-	id := uuid.New().String()
-	now := time.Now()
-	_, err := r.db.Exec(ctx, `INSERT INTO routine_workouts (id, routine_id, workout_id, slot_order, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)`, id, routineID, workoutID, slotOrder, now, now)
-	return err
-}
-
-func (r *RoutineRepository) addWorkoutToRoutineSQLite(ctx context.Context, userID, routineID, workoutID string, slotOrder int) error {
-	if _, err := r.getRoutineSQLite(ctx, userID, routineID); err != nil {
-		return err
-	}
-	id := uuid.New().String()
-	now := time.Now()
-	_, err := r.sqlite.ExecContext(ctx, `INSERT INTO routine_workouts (id, routine_id, workout_id, slot_order, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, id, routineID, workoutID, slotOrder, now, now)
-	return err
-}
-
-func (r *RoutineRepository) SetRoutineWorkouts(ctx context.Context, userID, routineID string, workoutIDs []string) error {
-	if _, err := r.GetRoutine(ctx, userID, routineID); err != nil {
-		return err
-	}
-	if r.useSQLite {
-		_, _ = r.sqlite.ExecContext(ctx, `DELETE FROM routine_workouts WHERE routine_id = ?`, routineID)
-		for i, wid := range workoutIDs {
-			if err := r.addWorkoutToRoutineSQLite(ctx, userID, routineID, wid, i+1); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-	_, _ = r.db.Exec(ctx, `DELETE FROM routine_workouts WHERE routine_id = $1`, routineID)
-	for i, wid := range workoutIDs {
-		if err := r.addWorkoutToRoutinePostgres(ctx, userID, routineID, wid, i+1); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 func (r *RoutineRepository) GetRoutineTemplates() []RoutineTemplate {
@@ -331,14 +299,7 @@ func (r *RoutineRepository) CreateFromTemplate(ctx context.Context, userID, temp
 		workoutIDs = append(workoutIDs, workout.ID)
 	}
 
-	routine, err := r.CreateRoutine(ctx, userID, name, tpl.Description)
-	if err != nil {
-		return nil, err
-	}
-	if err := r.SetRoutineWorkouts(ctx, userID, routine.ID, workoutIDs); err != nil {
-		return nil, err
-	}
-	return r.GetRoutine(ctx, userID, routine.ID)
+	return r.CreateRoutine(ctx, userID, name, tpl.Description, workoutIDs)
 }
 
 func getRoutineTemplates() []RoutineTemplate {

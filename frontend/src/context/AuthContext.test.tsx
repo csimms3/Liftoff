@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useEffect } from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AuthProvider } from './AuthContext'
@@ -251,5 +252,42 @@ describe('AuthContext — 401 auto-logout', () => {
 
     await waitFor(() => expect(screen.getByTestId('authenticated')).toHaveTextContent('no'))
     expect(localStorage.getItem('liftoff-auth')).toBeNull()
+  })
+})
+
+describe('AuthContext — idle logout', () => {
+  function IdleConsumer({ paused }: { paused: boolean }) {
+    const { isAuthenticated, setIdleLogoutPaused } = useAuth()
+    useEffect(() => setIdleLogoutPaused(paused), [paused, setIdleLogoutPaused])
+    return <span data-testid="authenticated">{isAuthenticated ? 'yes' : 'no'}</span>
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    localStorage.clear()
+    setSessionTimeoutMinutes(1)
+    localStorage.setItem('liftoff-auth', JSON.stringify(fakeAuthResponse))
+    vi.stubGlobal('fetch', mockFetchFailure(503, 'down'))
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('logs out after the idle timeout', () => {
+    render(<AuthProvider><IdleConsumer paused={false} /></AuthProvider>)
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('yes')
+    act(() => { vi.advanceTimersByTime(61_000) })
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('no')
+  })
+
+  it('stays logged in while paused (during a workout), and resumes after', () => {
+    const { rerender } = render(<AuthProvider><IdleConsumer paused={true} /></AuthProvider>)
+    act(() => { vi.advanceTimersByTime(10 * 60_000) })
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('yes')
+
+    rerender(<AuthProvider><IdleConsumer paused={false} /></AuthProvider>)
+    act(() => { vi.advanceTimersByTime(61_000) })
+    expect(screen.getByTestId('authenticated')).toHaveTextContent('no')
   })
 })

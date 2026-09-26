@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
@@ -60,5 +60,29 @@ describe('App', () => {
     await waitFor(() => {
       expect(screen.getByText('Loading workouts...')).toBeInTheDocument()
     })
+  })
+})
+
+describe('App — workout in progress', () => {
+  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const active = { id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true, exercises: [] }
+
+  beforeEach(() => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+      if (url.includes('/sessions/active')) return json(active)
+      if (url.includes('/sessions') && init?.method === 'POST') return json(active)
+      if (url.endsWith('/workouts')) return json([workout])
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+  })
+
+  test('"Continue Session" shows the session without starting (and so ending) one', async () => {
+    renderWithAuth(<App />)
+    const button = await screen.findByRole('button', { name: 'Continue Session' })
+    fireEvent.click(button)
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Continue Session' })).toBeNull())
+    const started = mockFetch.mock.calls.filter(([url, init]) => String(url).endsWith('/sessions') && init?.method === 'POST')
+    expect(started).toHaveLength(0)
   })
 })

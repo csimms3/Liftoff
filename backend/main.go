@@ -25,6 +25,16 @@ func serverError(c *gin.Context, msg string, err error) {
 	c.JSON(http.StatusInternalServerError, gin.H{"error": msg})
 }
 
+// notFoundOr answers 404 with notFoundMsg for repository.ErrNotFound (missing or
+// not the caller's), and a generic 500 for anything else.
+func notFoundOr(c *gin.Context, err error, notFoundMsg, serverMsg string) {
+	if errors.Is(err, repository.ErrNotFound) {
+		c.JSON(http.StatusNotFound, gin.H{"error": notFoundMsg})
+		return
+	}
+	serverError(c, serverMsg, err)
+}
+
 // badRequest answers a request body that failed to bind or validate.
 func badRequest(c *gin.Context) {
 	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
@@ -176,16 +186,15 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Routine name is required"})
 				return
 			}
-			routine, err := routineRepo.CreateRoutine(c.Request.Context(), userID(c), input.Name, input.Description)
-			if err != nil {
-				log.Printf("Error creating routine: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create routine"})
+			routine, err := routineRepo.CreateRoutine(c.Request.Context(), userID(c), input.Name, input.Description, input.WorkoutIDs)
+			if errors.Is(err, repository.ErrNotFound) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "One or more workouts were not found"})
 				return
 			}
-			if len(input.WorkoutIDs) > 0 {
-				_ = routineRepo.SetRoutineWorkouts(c.Request.Context(), userID(c), routine.ID, input.WorkoutIDs)
+			if err != nil {
+				serverError(c, "Failed to create routine", err)
+				return
 			}
-			routine, _ = routineRepo.GetRoutine(c.Request.Context(), userID(c), routine.ID)
 			c.JSON(http.StatusCreated, routine)
 		})
 
@@ -220,11 +229,20 @@ func main() {
 			if input.Description != "" {
 				desc = input.Description
 			}
-			_ = routineRepo.UpdateRoutine(c.Request.Context(), userID(c), routine.ID, name, desc)
-			if input.WorkoutIDs != nil {
-				_ = routineRepo.SetRoutineWorkouts(c.Request.Context(), userID(c), routine.ID, input.WorkoutIDs)
+			err = routineRepo.UpdateRoutine(c.Request.Context(), userID(c), routine.ID, name, desc, input.WorkoutIDs)
+			if errors.Is(err, repository.ErrNotFound) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "One or more workouts were not found"})
+				return
 			}
-			routine, _ = routineRepo.GetRoutine(c.Request.Context(), userID(c), routine.ID)
+			if err != nil {
+				serverError(c, "Failed to update routine", err)
+				return
+			}
+			routine, err = routineRepo.GetRoutine(c.Request.Context(), userID(c), routine.ID)
+			if err != nil {
+				serverError(c, "Failed to update routine", err)
+				return
+			}
 			c.JSON(http.StatusOK, routine)
 		})
 
@@ -366,9 +384,9 @@ func main() {
 				return
 			}
 
-			session, err := sessionRepo.CreateSessionWithExercises(c.Request.Context(), userID(c), input.WorkoutID)
+			session, err := sessionRepo.StartSession(c.Request.Context(), userID(c), input.WorkoutID)
 			if err != nil {
-				serverError(c, "Failed to start session", err)
+				notFoundOr(c, err, "Workout not found", "Failed to start session")
 				return
 			}
 			c.JSON(http.StatusCreated, session)
@@ -386,7 +404,7 @@ func main() {
 		authAPI.PUT("/sessions/:id/end", func(c *gin.Context) {
 			session, err := sessionRepo.EndSession(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
-				serverError(c, "Failed to end session", err)
+				notFoundOr(c, err, "Session not found", "Failed to end session")
 				return
 			}
 			c.JSON(http.StatusOK, session)
@@ -403,7 +421,7 @@ func main() {
 			}
 			sessionExercise, err := sessionRepo.CreateSessionExercise(c.Request.Context(), userID(c), c.Param("id"), input.ExerciseID)
 			if err != nil {
-				serverError(c, "Failed to add exercise to session", err)
+				notFoundOr(c, err, "Session or exercise not found", "Failed to add exercise to session")
 				return
 			}
 			c.JSON(http.StatusCreated, sessionExercise)
@@ -429,7 +447,7 @@ func main() {
 
 			err := sessionRepo.CreateExerciseSet(c.Request.Context(), userID(c), set)
 			if err != nil {
-				serverError(c, "Failed to add set", err)
+				notFoundOr(c, err, "Session exercise not found", "Failed to add set")
 				return
 			}
 			c.JSON(http.StatusCreated, set)
@@ -444,8 +462,12 @@ func main() {
 				return
 			}
 			err := sessionRepo.CompleteExerciseSet(c.Request.Context(), userID(c), c.Param("id"), input.SetIndex)
+			if errors.Is(err, repository.ErrInvalidSetIndex) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid set index"})
+				return
+			}
 			if err != nil {
-				serverError(c, "Failed to complete set", err)
+				notFoundOr(c, err, "Set not found", "Failed to complete set")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Set completed"})
@@ -470,7 +492,7 @@ func main() {
 			}
 			err := sessionRepo.UpdateExerciseSet(c.Request.Context(), userID(c), set)
 			if err != nil {
-				serverError(c, "Failed to update set", err)
+				notFoundOr(c, err, "Set not found", "Failed to update set")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Set updated"})
