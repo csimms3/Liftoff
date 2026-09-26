@@ -19,7 +19,7 @@ var (
 const MinSecretLength = 32
 
 const (
-	DefaultTokenExpiryMinutes   = 15
+	DefaultTokenExpiryMinutes   = 720 // 12h, so nobody is logged out mid-workout
 	DefaultRememberMeExpiryDays = 30
 )
 

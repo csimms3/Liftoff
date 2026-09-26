@@ -121,3 +121,22 @@ func TestCORS_VaryOnEveryResponse(t *testing.T) {
 		}
 	}
 }
+
+func TestRequireReady(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	ready := false
+	r := gin.New()
+	r.GET("/x", RequireReady(func() bool { return ready }), func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/x", nil))
+	if w.Code != http.StatusServiceUnavailable || w.Header().Get("Retry-After") == "" {
+		t.Errorf("not ready: got %d (Retry-After %q), want 503 with Retry-After", w.Code, w.Header().Get("Retry-After"))
+	}
+	ready = true
+	w = httptest.NewRecorder()
+	r.ServeHTTP(w, httptest.NewRequest("GET", "/x", nil))
+	if w.Code != http.StatusOK {
+		t.Errorf("ready: got %d, want 200", w.Code)
+	}
+}

@@ -48,10 +48,11 @@ func main() {
 		log.Fatalf("Refusing to start: %v (generate one with: openssl rand -hex 32)", err)
 	}
 
-	// Initialize database connection
+	// Initialize database connection. Only configuration errors are fatal; an
+	// unreachable Postgres leaves the server up, answering 503 until it is back.
 	db, err := database.NewDatabase()
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		log.Fatal("Failed to open database:", err)
 	}
 	defer db.Close()
 
@@ -79,8 +80,19 @@ func main() {
 	loginLimit := middleware.NewRateLimiter(10, time.Minute).Middleware()
 	registerLimit := middleware.NewRateLimiter(5, time.Hour).Middleware()
 
+	// Database status for the login screen; answers even while the DB is down.
+	r.GET("/api/status", func(c *gin.Context) {
+		if !db.Ready() {
+			c.Header("Retry-After", "30")
+			c.JSON(http.StatusServiceUnavailable, gin.H{"database": "unavailable", "error": middleware.DatabaseUnavailable})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"database": "ok"})
+	})
+
 	// API routes group - all endpoints under /api
 	api := r.Group("/api")
+	api.Use(middleware.RequireReady(db.Ready))
 	{
 		// Auth routes (no middleware required for login/register)
 		api.POST("/auth/login", loginLimit, authHandler.Login)
@@ -525,8 +537,13 @@ func main() {
 	}
 
 	// Health check
+	// Liveness: the process is up even when the database isn't (see /api/status).
 	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		dbStatus := "ok"
+		if !db.Ready() {
+			dbStatus = "unavailable"
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "database": dbStatus})
 	})
 
 	// Get port from environment or use default
