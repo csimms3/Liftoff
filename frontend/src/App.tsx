@@ -3,12 +3,13 @@ import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetLoggingForm } from './components/SetLoggingForm'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
+import { quickLogSet as quickLog } from './quickLog'
 import { useAuth } from './context/useAuth'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type Routine, type RoutineTemplate } from './api'
 import './App.css'
 
 export default function App() {
-  const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes, isAdmin, setShowAdmin } = useAuth()
+  const { user, logout, sessionTimeoutMinutes, setSessionTimeoutMinutes, isAdmin, setShowAdmin, setIdleLogoutPaused } = useAuth()
   const apiService = useMemo(() => new ApiService(), [])
   
   const [view, setView] = useState<'workouts' | 'routines' | 'session' | 'progress' | 'library'>('workouts');
@@ -52,6 +53,12 @@ export default function App() {
     return (savedUnit as 'lbs' | 'kg') || 'lbs';
   });
   
+  // Don't log out for inactivity in the middle of a workout.
+  useEffect(() => {
+    setIdleLogoutPaused(!!activeSession)
+    return () => setIdleLogoutPaused(false)
+  }, [activeSession, setIdleLogoutPaused])
+
   useEffect(() => {
     document.body.setAttribute('data-theme', theme);
     localStorage.setItem('liftoff-theme', theme);
@@ -297,6 +304,16 @@ export default function App() {
   };
 
   const startWorkout = async (workout: Workout) => {
+    // Continuing the workout in progress: just show it. Starting any session ends
+    // the active one on the server.
+    if (activeSession?.workout_id === workout.id) {
+      setCurrentWorkout(workout)
+      setView('session')
+      return
+    }
+    if (activeSession && !window.confirm(`Starting "${workout.name}" will end your current workout. Continue?`)) {
+      return
+    }
     try {
       setLoading(true)
       const session = await apiService.createSession(workout.id)
@@ -328,13 +345,8 @@ export default function App() {
   const quickLogSet = async (exerciseId: string, reps: number, weight: number, notes?: string) => {
     try {
       setLoading(true)
-      // Create a temporary session exercise and set for logging
-      const session = await apiService.createSession(currentWorkout!.id)
-      const sessionExercise = await apiService.addExerciseToSession(session.id, exerciseId)
-      const set = await apiService.createSet(sessionExercise.id, reps, weight)
-      await apiService.updateSet(set.id, reps, weight, notes)
-      // End the session immediately after logging
-      await apiService.endSession(session.id)
+      await quickLog(apiService, activeSession, currentWorkout!.id, exerciseId, reps, weight, notes)
+      loadActiveSession()
       loadProgressData() // Refresh progress data
     } catch (error) {
       console.error('Failed to quick log set:', error)

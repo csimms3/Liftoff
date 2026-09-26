@@ -27,6 +27,8 @@ export interface AuthContextType extends AuthState {
   setSessionTimeoutMinutes: (minutes: number) => void
   showAdmin: boolean
   setShowAdmin: (show: boolean) => void
+  /** Suspends the idle logout, e.g. while a workout is in progress. */
+  setIdleLogoutPaused: (paused: boolean) => void
 }
 
 const AUTH_KEY = 'liftoff-auth'
@@ -70,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const [sessionTimeoutMinutes, setSessionTimeoutState] = useState(getSessionTimeoutMinutes)
   const [showAdmin, setShowAdmin] = useState(false)
+  const [idleLogoutPaused, setIdleLogoutPaused] = useState(false)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const applyAuth = useCallback((data: StoredAuth | null) => {
@@ -173,9 +176,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     applyAuth(null)
   }, [applyAuth])
 
-  // Idle timeout: log out after N minutes of no activity (only when not "remember me" - short token)
+  // Idle timeout: log out after N minutes of no activity (only when not "remember me" - short token).
+  // Paused during a workout: rests and a locked screen aren't the user leaving.
   useEffect(() => {
-    if (!token || !user) return
+    if (!token || !user || idleLogoutPaused) return
     const stored = getStoredAuth()
     if (!stored) return
     const expiry = new Date(stored.expiresAt)
@@ -198,7 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
       events.forEach((e) => window.removeEventListener(e, resetIdleTimer))
     }
-  }, [token, user, sessionTimeoutMinutes, applyAuth])
+  }, [token, user, sessionTimeoutMinutes, applyAuth, idleLogoutPaused])
 
   const updateSessionTimeout = useCallback((minutes: number) => {
     const value = Math.max(1, Math.min(120, minutes))
@@ -221,6 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSessionTimeoutMinutes: updateSessionTimeout,
     showAdmin,
     setShowAdmin,
+    setIdleLogoutPaused,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
