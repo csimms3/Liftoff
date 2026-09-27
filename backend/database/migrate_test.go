@@ -137,8 +137,8 @@ func TestMigrateSQLite_FreshDatabase(t *testing.T) {
 	if users != 0 {
 		t.Errorf("fresh database has %d users, want 0 (no seeded admin)", users)
 	}
-	if applied != 2 {
-		t.Errorf("schema_migrations has %d rows, want 2", applied)
+	if applied != 3 {
+		t.Errorf("schema_migrations has %d rows, want 3", applied)
 	}
 	if isAdminCol != 1 {
 		t.Error("users.is_admin missing")

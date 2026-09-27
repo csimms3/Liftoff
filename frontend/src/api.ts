@@ -63,6 +63,8 @@ export interface SessionExercise {
 	exercise_id: string;
 	exercise: Exercise;
 	sets: ExerciseSet[];
+	/** Completed sets from the last session that logged this exercise, in order. */
+	previous?: ExerciseSet[] | null;
 }
 
 export interface ExerciseSet {
@@ -110,6 +112,9 @@ export class ApiService {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
+    if (response.status === 204) {
+      return undefined as T
+    }
     return response.json()
   }
 
@@ -189,6 +194,18 @@ export class ApiService {
       method: 'POST',
       body: JSON.stringify({ sessionExerciseId, reps, weight }),
     })
+  }
+
+  /** Updates any of reps, weight or completed on a set; returns the saved set. */
+  async patchSet(setId: string, patch: { reps?: number; weight?: number; completed?: boolean }): Promise<ExerciseSet> {
+    return this.request<ExerciseSet>(`/exercise-sets/${setId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+  }
+
+  async deleteSet(setId: string): Promise<void> {
+    return this.request<void>(`/exercise-sets/${setId}`, { method: 'DELETE' })
   }
 
   async getProgressData(): Promise<ProgressData[]> {

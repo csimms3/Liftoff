@@ -116,6 +116,7 @@ type sqliteMigration struct {
 var sqliteMigrations = []sqliteMigration{
 	{"003_user_data_isolation", sqliteUserDataIsolation},
 	{"006_admin_flag", sqliteAdminFlag},
+	{"007_positions", sqlitePositions},
 }
 
 // MigrateSQLite applies the SQLite migration steps not yet recorded in schema_migrations.
@@ -213,5 +214,37 @@ func sqliteAdminFlag(tx *sql.Tx) error {
 	}
 	_, err = tx.Exec("UPDATE users SET password_hash = ?, is_admin = 0 WHERE "+seeded,
 		auth.LockedPasswordHash, legacyOwnerID, legacyAdminEmail)
+	return err
+}
+
+// sqlitePositions mirrors migrations/007_positions.sql.
+func sqlitePositions(tx *sql.Tx) error {
+	for _, table := range []string{"session_exercises", "exercise_sets"} {
+		has, err := sqliteHasColumn(tx, table, "position")
+		if err != nil {
+			return err
+		}
+		if !has {
+			if _, err := tx.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN position INTEGER NOT NULL DEFAULT 0", table)); err != nil {
+				return err
+			}
+		}
+	}
+	if _, err := tx.Exec(`UPDATE session_exercises SET position = (
+		SELECT ranked.pos FROM (
+			SELECT se.id, ROW_NUMBER() OVER (
+				PARTITION BY se.session_id ORDER BY julianday(se.created_at), julianday(e.created_at), se.rowid
+			) - 1 AS pos
+			FROM session_exercises se LEFT JOIN exercises e ON e.id = se.exercise_id
+		) ranked WHERE ranked.id = session_exercises.id)`); err != nil {
+		return err
+	}
+	_, err := tx.Exec(`UPDATE exercise_sets SET position = (
+		SELECT ranked.pos FROM (
+			SELECT id, ROW_NUMBER() OVER (
+				PARTITION BY session_exercise_id ORDER BY julianday(created_at), rowid
+			) - 1 AS pos
+			FROM exercise_sets
+		) ranked WHERE ranked.id = exercise_sets.id)`)
 	return err
 }

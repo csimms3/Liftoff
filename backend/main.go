@@ -443,8 +443,8 @@ func main() {
 		authAPI.POST("/exercise-sets", func(c *gin.Context) {
 			var input struct {
 				SessionExerciseID string  `json:"sessionExerciseId" binding:"required"`
-				Reps              int     `json:"reps"`
-				Weight            float64 `json:"weight"`
+				Reps              int     `json:"reps" binding:"min=0,max=10000"`
+				Weight            float64 `json:"weight" binding:"min=0,max=99999"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				badRequest(c)
@@ -463,6 +463,35 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusCreated, set)
+		})
+
+		// Partial update from the set rows: any of reps, weight, completed.
+		authAPI.PATCH("/exercise-sets/:id", func(c *gin.Context) {
+			var input struct {
+				Reps      *int     `json:"reps" binding:"omitempty,min=0,max=10000"`
+				Weight    *float64 `json:"weight" binding:"omitempty,min=0,max=99999"`
+				Completed *bool    `json:"completed"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				badRequest(c)
+				return
+			}
+			set, err := sessionRepo.PatchExerciseSet(c.Request.Context(), userID(c), c.Param("id"), repository.SetPatch{
+				Reps: input.Reps, Weight: input.Weight, Completed: input.Completed,
+			})
+			if err != nil {
+				notFoundOr(c, err, "Set not found", "Failed to update set")
+				return
+			}
+			c.JSON(http.StatusOK, set)
+		})
+
+		authAPI.DELETE("/exercise-sets/:id", func(c *gin.Context) {
+			if err := sessionRepo.DeleteExerciseSet(c.Request.Context(), userID(c), c.Param("id")); err != nil {
+				notFoundOr(c, err, "Set not found", "Failed to delete set")
+				return
+			}
+			c.Status(http.StatusNoContent)
 		})
 
 		authAPI.PUT("/exercise-sets/:id/complete", func(c *gin.Context) {
