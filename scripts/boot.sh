@@ -36,6 +36,17 @@ if [ -z "$JWT_SECRET" ] && ! grep -qsE '^JWT_SECRET=.{32,}' "$ENV_FILE"; then
   echo "Generated a local JWT_SECRET in $ENV_FILE"
 fi
 
+# Database: the project-local Postgres (scripts/dev-db.sh), unless DATABASE_URL is
+# already set in the environment or backend/.env.
+if [ -z "$DATABASE_URL" ] && ! grep -qs '^DATABASE_URL=' "$ENV_FILE"; then
+  ./scripts/dev-db.sh start
+  [ -s "$ENV_FILE" ] && [ -n "$(tail -c1 "$ENV_FILE")" ] && echo >> "$ENV_FILE"
+  (umask 077; echo "DATABASE_URL=$(./scripts/dev-db.sh url)" >> "$ENV_FILE")
+  echo "Using the dev database; DATABASE_URL added to $ENV_FILE"
+elif grep -qs "^DATABASE_URL=$(./scripts/dev-db.sh url)$" "$ENV_FILE"; then
+  ./scripts/dev-db.sh start
+fi
+
 echo "Starting backend (port 8080)..."
 cd "$ROOT/backend"
 go run . &

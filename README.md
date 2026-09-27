@@ -16,7 +16,7 @@ A full-stack workout tracking application designed to help users create, track, 
 
 ### Backend (Go)
 - **Framework**: Gin web framework
-- **Database**: PostgreSQL; SQLite for local development
+- **Database**: PostgreSQL
 - **Data Access**: pgx / database/sql with repository pattern
 - **Auth**: JWT (access tokens) with AuthMiddleware for protected routes
 
@@ -38,7 +38,7 @@ Liftoff/
 │   ├── migrations/         # Ordered SQL migrations, applied on startup
 │   ├── models/             # Data models and structs
 │   ├── repository/         # Data access layer
-│   ├── internal/testdb/    # Test databases (SQLite, per-test Postgres schemas)
+│   ├── internal/testdb/    # Test databases (per-test Postgres schemas)
 │   ├── main.go             # Main application entry point
 │   └── go.mod              # Go module dependencies
 ├── frontend/                # React frontend application
@@ -55,7 +55,8 @@ Liftoff/
 ├── docs/
 │   └── architecture.md     # Architecture overview
 ├── .github/workflows/      # CI: vet, lint, build, tests
-├── docker-compose.yml      # Docker setup for PostgreSQL
+├── scripts/dev-db.sh       # Project-local PostgreSQL for dev and tests (.pgdata/)
+├── docker-compose.yml      # Alternative: PostgreSQL via Docker
 └── README.md               # This file
 ```
 
@@ -72,16 +73,19 @@ Starts backend (8080) and frontend (5173). Open http://localhost:5173. Press Ctr
 ### Prerequisites
 - Go 1.24+
 - Node.js 22 (see `frontend/.nvmrc`; Node 26 breaks the jsdom tests) and pnpm (`corepack enable`)
-- PostgreSQL (optional locally; SQLite is used when `DATABASE_URL` is unset and no local Postgres is running)
+- PostgreSQL 16 binaries on PATH: `brew install postgresql@16`, then (it's keg-only)
+  `export PATH="$(brew --prefix postgresql@16)/bin:$PATH"`. `scripts/dev-db.sh` runs a
+  project-local server in `.pgdata/`; no other Postgres is touched
 
 ### Backend Setup
 ```bash
+scripts/dev-db.sh start  # project-local PostgreSQL (the URL is in .env.example)
 cd backend
-cp .env.example .env   # then set JWT_SECRET: openssl rand -hex 32
+cp .env.example .env     # then set JWT_SECRET: openssl rand -hex 32
 go mod download
 go run .
 ```
-Run the backend from `backend/`: `.env` and the SQLite `liftoff.db` are read from the
+Run the backend from `backend/`: `.env` is read from the
 current directory. `scripts/boot.sh` does this for you.
 
 The backend will start on `http://localhost:8080`
@@ -96,11 +100,13 @@ pnpm dev
 The frontend will start on `http://localhost:5173` and proxy `/api` to the backend in development.
 
 ### Database Setup
-- **`DATABASE_URL` set** (production): only that PostgreSQL is used. If it is unreachable, the
+- **`DATABASE_URL`** (required): the PostgreSQL to use. If it is unreachable, the
   server still starts, `/api/*` answers `503` (the login screen shows why), and it reconnects in
-  the background. It never falls back to SQLite. `GET /api/status` reports database availability.
-- **`DATABASE_URL` unset** (local dev): a PostgreSQL on `localhost:5432` if one is running,
-  otherwise SQLite in `backend/liftoff.db`.
+  the background. `GET /api/status` reports database availability.
+- **Local development**: `scripts/dev-db.sh start` runs a project-local PostgreSQL (data in
+  `.pgdata/`, port 55433, no password); `scripts/boot.sh` starts it and adds its
+  `DATABASE_URL` to `backend/.env`. For a second checkout on the same machine, set
+  `LIFTOFF_DEV_DB_PORT` and put `$(scripts/dev-db.sh url)` in that checkout's `backend/.env`.
 
 Schema migrations in `backend/migrations/` are applied on startup and recorded in
 `schema_migrations`.
@@ -166,10 +172,9 @@ The application includes 32 predefined exercise templates organized by muscle gr
 
 ### Testing
 ```bash
-# Backend tests (Postgres tests run only when LIFTOFF_TEST_DATABASE_URL is set;
-# each test uses its own schema)
-cd backend
-go test ./...
+# Backend tests: need PostgreSQL; `make test` starts the dev database and sets
+# LIFTOFF_TEST_DATABASE_URL (each test uses its own schema)
+make test
 
 # Frontend tests
 cd frontend
@@ -190,6 +195,6 @@ pnpm build
 ## Deployment
 
 Not deployed yet. `go build` in `backend/` produces the API server, which needs
-`JWT_SECRET` and `DATABASE_URL` (see `backend/.env.example`); `pnpm build` in `frontend/`
+`JWT_SECRET` and `DATABASE_URL` (see `backend/.env.example`; its `DATABASE_URL` is the local dev database, so set a real one); `pnpm build` in `frontend/`
 produces static files in `frontend/dist/`. How the two are hosted together is still to be
 decided.

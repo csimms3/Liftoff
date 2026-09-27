@@ -1,63 +1,28 @@
 package handlers
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"liftoff/backend/internal/testdb"
 	"liftoff/backend/repository"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// newTestDB creates an in-memory SQLite DB with the minimum schema needed.
-func newTestDB(t *testing.T) *sql.DB {
-	t.Helper()
-	db, err := sql.Open("sqlite3", ":memory:")
-	if err != nil {
-		t.Fatalf("open test db: %v", err)
-	}
-	schema := []string{
-		`CREATE TABLE users (
-			id TEXT PRIMARY KEY,
-			email TEXT NOT NULL UNIQUE,
-			password_hash TEXT NOT NULL,
-			is_admin BOOLEAN NOT NULL DEFAULT 0,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE workouts (
-			id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			user_id TEXT NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE workout_sessions (
-			id TEXT PRIMARY KEY,
-			workout_id TEXT NOT NULL,
-			started_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			ended_at DATETIME,
-			is_active BOOLEAN NOT NULL DEFAULT 1,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)`,
-	}
-	for _, q := range schema {
-		if _, err := db.Exec(q); err != nil {
-			t.Fatalf("create schema: %v", err)
-		}
-	}
-	t.Cleanup(func() { db.Close() })
-	return db
+// newTestDB returns a fresh, migrated Postgres schema.
+func newTestDB(t *testing.T) *pgxpool.Pool {
+	return testdb.Postgres(t)
 }
 
-func setupAdminRouter(db *sql.DB) (*gin.Engine, *AdminHandler) {
+func setupAdminRouter(db *pgxpool.Pool) (*gin.Engine, *AdminHandler) {
 	gin.SetMode(gin.TestMode)
-	userRepo := repository.NewUserRepository(nil, db, true)
-	adminRepo := repository.NewAdminRepository(nil, db, true)
+	userRepo := repository.NewUserRepository(db)
+	adminRepo := repository.NewAdminRepository(db)
 	handler := NewAdminHandler(userRepo, adminRepo)
 	r := gin.New()
 	r.GET("/admin/users", handler.ListUsers)
@@ -95,12 +60,12 @@ func TestListUsers_Empty(t *testing.T) {
 
 func TestListUsers_WithData(t *testing.T) {
 	db := newTestDB(t)
-	_, err := db.Exec(`INSERT INTO users (id, email, password_hash) VALUES (?,?,?)`,
+	_, err := db.Exec(context.Background(), `INSERT INTO users (id, email, password_hash) VALUES ($1,$2,$3)`,
 		"u1", "alice@example.com", "hash1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = db.Exec(`INSERT INTO users (id, email, password_hash) VALUES (?,?,?)`,
+	_, err = db.Exec(context.Background(), `INSERT INTO users (id, email, password_hash) VALUES ($1,$2,$3)`,
 		"u2", "bob@example.com", "hash2")
 	if err != nil {
 		t.Fatal(err)
@@ -149,10 +114,12 @@ func TestGetStats_Empty(t *testing.T) {
 
 func TestGetStats_WithData(t *testing.T) {
 	db := newTestDB(t)
-	db.Exec(`INSERT INTO users (id, email, password_hash) VALUES ('u1','a@b.com','h')`)
-	db.Exec(`INSERT INTO workouts (id, name, user_id) VALUES ('w1','Workout A','u1')`)
-	db.Exec(`INSERT INTO workouts (id, name, user_id) VALUES ('w2','Workout B','u1')`)
-	db.Exec(`INSERT INTO workout_sessions (id, workout_id) VALUES ('s1','w1')`)
+	testdb.Exec(t, db,
+		`INSERT INTO users (id, email, password_hash) VALUES ('u1','a@b.com','h')`,
+		`INSERT INTO workouts (id, name, user_id) VALUES ('w1','Workout A','u1')`,
+		`INSERT INTO workouts (id, name, user_id) VALUES ('w2','Workout B','u1')`,
+		`INSERT INTO workout_sessions (id, workout_id, user_id) VALUES ('s1','w1','u1')`,
+	)
 
 	r, _ := setupAdminRouter(db)
 	req := httptest.NewRequest(http.MethodGet, "/admin/stats", nil)

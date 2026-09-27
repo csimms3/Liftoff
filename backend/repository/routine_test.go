@@ -23,7 +23,7 @@ func routineWorkoutIDs(t *testing.T, e *env, userID, routineID string) []string 
 }
 
 func TestCreateRoutine_WithWorkoutsInOrder(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		me := e.user(t, "me@example.com")
 		a, b := e.workout(t, me, "A"), e.workout(t, me, "B")
 
@@ -38,7 +38,7 @@ func TestCreateRoutine_WithWorkoutsInOrder(t *testing.T) {
 }
 
 func TestCreateRoutine_OtherUsersWorkoutWritesNothing(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		me := e.user(t, "me@example.com")
 		other := e.user(t, "other@example.com")
 		mine, theirs := e.workout(t, me, "Mine"), e.workout(t, other, "Theirs")
@@ -54,7 +54,7 @@ func TestCreateRoutine_OtherUsersWorkoutWritesNothing(t *testing.T) {
 }
 
 func TestUpdateRoutine_RejectedChangeLeavesRoutineIntact(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		other := e.user(t, "other@example.com")
@@ -96,7 +96,7 @@ func TestUpdateRoutine_RejectedChangeLeavesRoutineIntact(t *testing.T) {
 }
 
 func TestUpdateRoutine_OtherUsersRoutine(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		owner := e.user(t, "owner@example.com")
 		other := e.user(t, "other@example.com")
@@ -115,7 +115,7 @@ func TestUpdateRoutine_OtherUsersRoutine(t *testing.T) {
 }
 
 func TestCreateFromTemplate_CreatesRoutineWithWorkouts(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		me := e.user(t, "me@example.com")
 		tpls := e.routines.GetRoutineTemplates()
 		r, err := e.routines.CreateFromTemplate(context.Background(), me, tpls[0].ID, "")
@@ -131,10 +131,9 @@ func TestCreateFromTemplate_CreatesRoutineWithWorkouts(t *testing.T) {
 	})
 }
 
-// SQLite used deferred transactions, so concurrent read-then-write transactions
-// failed with SQLITE_BUSY instead of waiting.
+// Concurrent read-then-write transactions all succeed.
 func TestCreateRoutine_Concurrent(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "A")
 		var wg sync.WaitGroup
