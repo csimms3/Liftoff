@@ -219,3 +219,176 @@ func TestEndSession_And_CompleteSet_Errors(t *testing.T) {
 		}
 	})
 }
+
+func TestPatchExerciseSet(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me := e.user(t, "me@example.com")
+		other := e.user(t, "other@example.com")
+		w := e.workout(t, me, "Push", 2)
+		s, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		setID := s.Exercises[0].Sets[0].ID
+		reps, weight, done, undone := 5, 102.5, true, false
+
+		got, err := e.sessions.PatchExerciseSet(ctx, me, setID, repository.SetPatch{Reps: &reps})
+		if err != nil || got.Reps != 5 || got.Weight != 50 || got.Completed {
+			t.Fatalf("reps only: %+v %v; want reps 5, weight unchanged 50, not completed", got, err)
+		}
+		got, _ = e.sessions.PatchExerciseSet(ctx, me, setID, repository.SetPatch{Weight: &weight, Completed: &done})
+		if got.Reps != 5 || got.Weight != 102.5 || !got.Completed {
+			t.Errorf("weight+completed: %+v", got)
+		}
+		got, _ = e.sessions.PatchExerciseSet(ctx, me, setID, repository.SetPatch{Completed: &undone})
+		if got.Completed || got.Weight != 102.5 {
+			t.Errorf("untick: %+v, want not completed and weight kept", got)
+		}
+		for _, uid := range []string{other, ""} {
+			if _, err := e.sessions.PatchExerciseSet(ctx, uid, setID, repository.SetPatch{Reps: &reps}); !errors.Is(err, repository.ErrNotFound) {
+				t.Errorf("patch as %q: %v, want ErrNotFound", uid, err)
+			}
+		}
+	})
+}
+
+func TestDeleteExerciseSet(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me := e.user(t, "me@example.com")
+		other := e.user(t, "other@example.com")
+		w := e.workout(t, me, "Push", 3)
+		s, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sets := s.Exercises[0].Sets
+		if err := e.sessions.DeleteExerciseSet(ctx, other, sets[2].ID); !errors.Is(err, repository.ErrNotFound) {
+			t.Errorf("delete as other user: %v, want ErrNotFound", err)
+		}
+		if err := e.sessions.DeleteExerciseSet(ctx, me, sets[2].ID); err != nil {
+			t.Fatal(err)
+		}
+		left, _ := e.sessions.GetExerciseSets(ctx, s.Exercises[0].ID)
+		if len(left) != 2 || left[0].ID != sets[0].ID || left[1].ID != sets[1].ID {
+			t.Errorf("after deleting set 3: %d sets left, want sets 1 and 2 in order", len(left))
+		}
+	})
+}
+
+// Sets keep their order after edits (on Postgres an UPDATE can move a row, and
+// all planned sets share one created_at), and new sets go last.
+func TestExerciseSets_StableOrder(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me := e.user(t, "me@example.com")
+		w := e.workout(t, me, "Push", 4, 3, 2)
+		s, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for i, se := range s.Exercises {
+			if se.ExerciseID != w.Exercises[i].ID {
+				t.Fatalf("session exercise %d is %s, want the workout's order", i, se.ExerciseID)
+			}
+		}
+		se := s.Exercises[0]
+		want := []string{}
+		for _, set := range se.Sets {
+			want = append(want, set.ID)
+		}
+		for i := len(se.Sets) - 1; i >= 0; i-- { // edit in reverse to shuffle physical order
+			r := 10 + i
+			if _, err := e.sessions.PatchExerciseSet(ctx, me, se.Sets[i].ID, repository.SetPatch{Reps: &r}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		added := &models.ExerciseSet{SessionExerciseID: se.ID, Reps: 1, Weight: 1}
+		if err := e.sessions.CreateExerciseSet(ctx, me, added); err != nil {
+			t.Fatal(err)
+		}
+		want = append(want, added.ID)
+		got, _ := e.sessions.GetExerciseSets(ctx, se.ID)
+		for i := range want {
+			if i >= len(got) || got[i].ID != want[i] {
+				t.Fatalf("set order changed: position %d", i)
+			}
+		}
+	})
+}
+
+func TestActiveSession_PreviousSets(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me := e.user(t, "me@example.com")
+		w := e.workout(t, me, "Push", 3)
+		first, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p := first.Exercises[0].Previous; len(p) != 0 {
+			t.Fatalf("first session has %d previous sets, want none", len(p))
+		}
+		// Log sets 1 and 2 (with different values); leave set 3 unlogged.
+		done := true
+		for i, reps := range []int{8, 6} {
+			wt := 100.0 + float64(i)*5
+			if _, err := e.sessions.PatchExerciseSet(ctx, me, first.Exercises[0].Sets[i].ID, repository.SetPatch{Reps: &reps, Weight: &wt, Completed: &done}); err != nil {
+				t.Fatal(err)
+			}
+		}
+		second, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		p := second.Exercises[0].Previous
+		if len(p) != 2 || p[0].Reps != 8 || p[0].Weight != 100 || p[1].Reps != 6 || p[1].Weight != 105 {
+			t.Errorf("previous = %d sets %v, want [100x8, 105x6]", len(p), p)
+		}
+	})
+}
+
+// Exercises added to a session mid-workout go after the planned ones.
+func TestCreateSessionExercise_AppendsInOrder(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me := e.user(t, "me@example.com")
+		w := e.workout(t, me, "Push", 2, 2)
+		extra := e.workout(t, me, "Extra", 1)
+		s, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := e.sessions.CreateSessionExercise(ctx, me, s.ID, extra.Exercises[0].ID); err != nil {
+			t.Fatal(err)
+		}
+		got, err := e.sessions.GetActiveSessionWithExercises(ctx, me)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got.Exercises) != 3 || got.Exercises[2].ExerciseID != extra.Exercises[0].ID {
+			t.Errorf("added exercise should be last of 3")
+		}
+	})
+}
+
+func TestPatchExerciseSet_DeletedSetIsNotFound(t *testing.T) {
+	forEachBackend(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me := e.user(t, "me@example.com")
+		w := e.workout(t, me, "Push", 2)
+		s, err := e.sessions.StartSession(ctx, me, w.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		id := s.Exercises[0].Sets[1].ID
+		if err := e.sessions.DeleteExerciseSet(ctx, me, id); err != nil {
+			t.Fatal(err)
+		}
+		reps := 3
+		if _, err := e.sessions.PatchExerciseSet(ctx, me, id, repository.SetPatch{Reps: &reps}); !errors.Is(err, repository.ErrNotFound) {
+			t.Errorf("patching a deleted set: %v, want ErrNotFound", err)
+		}
+	})
+}

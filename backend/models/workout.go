@@ -79,8 +79,11 @@ type SessionExercise struct {
 	ExerciseID string         `json:"exercise_id" db:"exercise_id"`
 	Exercise   *Exercise      `json:"exercise" db:"-"`
 	Sets       []*ExerciseSet `json:"sets" db:"-"`
-	CreatedAt  time.Time      `json:"created_at" db:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at" db:"updated_at"`
+	// Previous holds the completed sets for this exercise from the user's last
+	// session that logged it, in order; empty when there is none.
+	Previous  []*ExerciseSet `json:"previous" db:"-"`
+	CreatedAt time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at" db:"updated_at"`
 }
 
 // ExerciseSet represents a single set of an exercise during a session

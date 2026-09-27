@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
-import { SetLoggingForm } from './components/SetLoggingForm'
+import { SetTable } from './components/SetTable'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
 import { quickLogSet as quickLog } from './quickLog'
 import { useAuth } from './context/useAuth'
-import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type Routine, type RoutineTemplate } from './api'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet, type Routine, type RoutineTemplate } from './api'
 import './App.css'
 
 export default function App() {
@@ -145,6 +145,18 @@ export default function App() {
       setLoading(false)
     }
   }, [apiService])
+
+  // Keeps App's copy of the session in step with edits made in the set rows, which
+  // is what the rows are rebuilt from after switching views.
+  const updateSessionSets = useCallback(
+    (sessionExerciseId: string, update: (sets: ExerciseSet[]) => ExerciseSet[]) => {
+      setActiveSession(s => s && {
+        ...s,
+        exercises: s.exercises.map(se => (se.id === sessionExerciseId ? { ...se, sets: update(se.sets) } : se)),
+      })
+    },
+    [],
+  )
 
   const loadActiveSession = useCallback(async () => {
     try {
@@ -324,19 +336,6 @@ export default function App() {
     } catch (error) {
       console.error('Failed to start workout session:', error)
       setError('Failed to start workout session')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const logSet = async (setId: string, reps: number, weight: number, notes?: string) => {
-    try {
-      setLoading(true)
-      await apiService.updateSet(setId, reps, weight, notes)
-      loadActiveSession() // Reload active session to update logged sets
-    } catch (error) {
-      console.error('Failed to log set:', error)
-      setError('Failed to log set')
     } finally {
       setLoading(false)
     }
@@ -928,58 +927,37 @@ export default function App() {
         )}
 
         {view === 'session' && activeSession && (
-          <div className="workouts-view">
-            <div className="left-panel">
-              <div className="current-workout">
-                <h2>Active Session: {activeSession.workout?.name}</h2>
-                <div className="session-info">
-                  <p className="workout-stats">
-                    Started: {new Date(activeSession.started_at).toLocaleTimeString()}
-                  </p>
-                  <div className="workout-actions">
-                    <button onClick={endSession} className="btn-danger">
-                      End Session
-                    </button>
-                  </div>
-                </div>
+          <div className="session-view">
+            <div className="session-header">
+              <div>
+                <h2>{activeSession.workout?.name}</h2>
+                <p className="workout-stats">
+                  Started {new Date(activeSession.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+                </p>
               </div>
+              <button onClick={endSession} className="btn-danger">
+                End Session
+              </button>
             </div>
 
-            <div className="right-panel">
-              <div className="workouts-section">
-                <h2>Session Exercises</h2>
-                {activeSession.exercises?.length > 0 ? (
-                  <div className="exercise-cards">
-                    {activeSession.exercises.map(sessionExercise => (
-                      <div key={sessionExercise.id} className="exercise-card">
-                        <div className="exercise-header">
-                          <h4>{sessionExercise.exercise?.name}</h4>
-                        </div>
-                        <div className="exercise-stats">
-                          {sessionExercise.sets?.length > 0 ? (
-                            <div className="sets-grid">
-                              {sessionExercise.sets.map((set, index) => (
-                                <SetLoggingForm
-                                  key={set.id}
-                                  set={set}
-                                  setIndex={index}
-                                  onLogSet={logSet}
-                                  loading={loading}
-                                />
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="empty-state">No sets available</p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="empty-state">No exercises in this session</p>
-                )}
+            {activeSession.exercises?.length > 0 ? (
+              <div className="session-exercises">
+              {activeSession.exercises.map(sessionExercise => (
+                <section key={sessionExercise.id} className="session-exercise">
+                  <h3>{sessionExercise.exercise?.name}</h3>
+                  <SetTable
+                    sessionExercise={sessionExercise}
+                    api={apiService}
+                    weightUnit={weightUnit}
+                    onError={setError}
+                    onSetsUpdate={updateSessionSets}
+                  />
+                </section>
+              ))}
               </div>
-            </div>
+            ) : (
+              <p className="empty-state">No exercises in this session</p>
+            )}
           </div>
         )}
 

@@ -86,3 +86,74 @@ describe('App — workout in progress', () => {
     expect(started).toHaveLength(0)
   })
 })
+
+// The set rows keep their own state; App's copy of the session must follow it,
+// or switching views and back shows (and re-saves) stale values.
+describe('App — set edits survive switching views', () => {
+  test('edited and ticked set is still edited and ticked after Workouts -> Active Session', async () => {
+    const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+    const server = { id: 'a', weight: 100, reps: 8, completed: false }
+    const session = () => ({
+      id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true,
+      exercises: [{ id: 'se1', exercise_id: 'e1', exercise: { id: 'e1', name: 'Bench' }, sets: [{ ...server }], previous: [] }],
+    })
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+      if (url.includes('/exercise-sets/a') && init?.method === 'PATCH') {
+        Object.assign(server, JSON.parse(String(init.body)))
+        return json({ ...server })
+      }
+      if (url.includes('/sessions/active')) return json(session())
+      if (url.endsWith('/workouts')) return json([workout])
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue Session' }))
+
+    const weight = await screen.findByLabelText('Set 1 weight')
+    fireEvent.change(weight, { target: { value: '110' } })
+    fireEvent.blur(weight)
+    await waitFor(() => expect(server.weight).toBe(110))
+    fireEvent.click(screen.getByRole('button', { name: 'Set 1 done' }))
+    await waitFor(() => expect(server.completed).toBe(true))
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Workouts' })[0]) // nav, not the footer link
+    fireEvent.click(screen.getByRole('button', { name: 'Active Session' }))
+    expect(await screen.findByLabelText('Set 1 weight')).toHaveValue(110)
+    expect(screen.getByRole('button', { name: 'Set 1 done' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  test('a save still in flight when leaving the session view is kept', async () => {
+    const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+    const server = { id: 'a', weight: 100, reps: 8, completed: false }
+    const session = () => ({
+      id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true,
+      exercises: [{ id: 'se1', exercise_id: 'e1', exercise: { id: 'e1', name: 'Bench' }, sets: [{ ...server }], previous: [] }],
+    })
+    let sessionLoads = 0
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+      if (url.includes('/exercise-sets/a') && init?.method === 'PATCH') {
+        Object.assign(server, JSON.parse(String(init.body)))
+        const reply = { ...server }
+        return new Promise(resolve => setTimeout(() => resolve({ ok: true, status: 200, json: () => Promise.resolve(reply) }), 50))
+      }
+      if (url.includes('/sessions/active')) { sessionLoads++; return json(session()) }
+      if (url.endsWith('/workouts')) return json([workout])
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue Session' }))
+    const loadsBefore = sessionLoads
+
+    const weight = await screen.findByLabelText('Set 1 weight')
+    fireEvent.change(weight, { target: { value: '110' } })
+    fireEvent.blur(weight)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Workouts' })[0]) // leave before the reply
+    await new Promise(r => setTimeout(r, 150))
+    fireEvent.click(screen.getByRole('button', { name: 'Active Session' }))
+
+    expect(await screen.findByLabelText('Set 1 weight')).toHaveValue(110)
+    expect(sessionLoads).toBe(loadsBefore) // from App's copy, not a reload
+  })
+})

@@ -77,17 +77,17 @@ func (r *SessionRepository) StartSession(ctx context.Context, userID, workoutID 
 			VALUES (?, ?, ?, ?, ?, ?, ?)`, sessionID, userID, workoutID, now, true, now, now); err != nil {
 			return fmt.Errorf("create session: %w", err)
 		}
-		for _, exercise := range workout.Exercises {
+		for pos, exercise := range workout.Exercises {
 			seID := uuid.New().String()
 			if err := tx.Exec(ctx, `
-				INSERT INTO session_exercises (id, session_id, exercise_id, created_at, updated_at)
-				VALUES (?, ?, ?, ?, ?)`, seID, sessionID, exercise.ID, now, now); err != nil {
+				INSERT INTO session_exercises (id, session_id, exercise_id, position, created_at, updated_at)
+				VALUES (?, ?, ?, ?, ?, ?)`, seID, sessionID, exercise.ID, pos, now, now); err != nil {
 				return fmt.Errorf("create session exercise: %w", err)
 			}
 			for i := 0; i < exercise.Sets; i++ {
 				if err := tx.Exec(ctx, `
-					INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, created_at, updated_at)
-					VALUES (?, ?, ?, ?, ?, ?, ?)`, uuid.New().String(), seID, exercise.Reps, exercise.Weight, false, now, now); err != nil {
+					INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, position, created_at, updated_at)
+					VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, uuid.New().String(), seID, exercise.Reps, exercise.Weight, false, i, now, now); err != nil {
 					return fmt.Errorf("create exercise set: %w", err)
 				}
 			}
@@ -129,6 +129,12 @@ func (r *SessionRepository) GetActiveSessionWithExercises(ctx context.Context, u
 			return nil, fmt.Errorf("failed to get exercise sets: %w", err)
 		}
 		se.Sets = sets
+
+		previous, err := r.previousSets(ctx, userID, se.ExerciseID, session.ID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get previous sets: %w", err)
+		}
+		se.Previous = previous
 	}
 
 	// Get workout details (session already filtered by user)
@@ -497,13 +503,13 @@ func (r *SessionRepository) createSessionExercisePostgres(ctx context.Context, s
 	now := time.Now()
 
 	query := `
-		INSERT INTO session_exercises (id, session_id, exercise_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
+		INSERT INTO session_exercises (id, session_id, exercise_id, position, created_at, updated_at)
+		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position) + 1, 0) FROM session_exercises WHERE session_id = $6), $4, $5)
 		RETURNING id, session_id, exercise_id, created_at, updated_at
 	`
 
 	var sessionExercise models.SessionExercise
-	err := r.db.QueryRow(ctx, query, id, sessionID, exerciseID, now, now).Scan(
+	err := r.db.QueryRow(ctx, query, id, sessionID, exerciseID, now, now, sessionID).Scan(
 		&sessionExercise.ID, &sessionExercise.SessionID, &sessionExercise.ExerciseID,
 		&sessionExercise.CreatedAt, &sessionExercise.UpdatedAt,
 	)
@@ -519,11 +525,11 @@ func (r *SessionRepository) createSessionExerciseSQLite(ctx context.Context, ses
 	now := time.Now()
 
 	query := `
-		INSERT INTO session_exercises (id, session_id, exercise_id, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO session_exercises (id, session_id, exercise_id, position, created_at, updated_at)
+		VALUES (?, ?, ?, (SELECT COALESCE(MAX(position) + 1, 0) FROM session_exercises WHERE session_id = ?), ?, ?)
 	`
 
-	_, err := r.sqlite.ExecContext(ctx, query, id, sessionID, exerciseID, now, now)
+	_, err := r.sqlite.ExecContext(ctx, query, id, sessionID, exerciseID, sessionID, now, now)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session exercise: %w", err)
 	}
@@ -549,7 +555,7 @@ func (r *SessionRepository) getSessionExercisesPostgres(ctx context.Context, ses
 		SELECT id, session_id, exercise_id, created_at, updated_at
 		FROM session_exercises
 		WHERE session_id = $1
-		ORDER BY created_at ASC
+		ORDER BY position, created_at, id
 	`
 
 	rows, err := r.db.Query(ctx, query, sessionID)
@@ -579,7 +585,7 @@ func (r *SessionRepository) getSessionExercisesSQLite(ctx context.Context, sessi
 		SELECT id, session_id, exercise_id, created_at, updated_at
 		FROM session_exercises
 		WHERE session_id = ?
-		ORDER BY created_at ASC
+		ORDER BY position, created_at, id
 	`
 
 	rows, err := r.sqlite.QueryContext(ctx, query, sessionID)
@@ -654,11 +660,11 @@ func (r *SessionRepository) createExerciseSetPostgres(ctx context.Context, set *
 	now := time.Now()
 
 	query := `
-		INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, notes, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, notes, position, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, (SELECT COALESCE(MAX(position) + 1, 0) FROM exercise_sets WHERE session_exercise_id = $9), $7, $8)
 	`
 
-	_, err := r.db.Exec(ctx, query, id, set.SessionExerciseID, set.Reps, set.Weight, set.Completed, set.Notes, now, now)
+	_, err := r.db.Exec(ctx, query, id, set.SessionExerciseID, set.Reps, set.Weight, set.Completed, set.Notes, now, now, set.SessionExerciseID)
 	if err != nil {
 		return fmt.Errorf("failed to create exercise set: %w", err)
 	}
@@ -674,11 +680,11 @@ func (r *SessionRepository) createExerciseSetSQLite(ctx context.Context, set *mo
 	now := time.Now()
 
 	query := `
-		INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, notes, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed, notes, position, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(position) + 1, 0) FROM exercise_sets WHERE session_exercise_id = ?), ?, ?)
 	`
 
-	_, err := r.sqlite.ExecContext(ctx, query, id, set.SessionExerciseID, set.Reps, set.Weight, set.Completed, set.Notes, now, now)
+	_, err := r.sqlite.ExecContext(ctx, query, id, set.SessionExerciseID, set.Reps, set.Weight, set.Completed, set.Notes, set.SessionExerciseID, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create exercise set: %w", err)
 	}
@@ -701,7 +707,7 @@ func (r *SessionRepository) getExerciseSetsPostgres(ctx context.Context, session
 		SELECT id, session_exercise_id, reps, weight, completed, notes, created_at, updated_at
 		FROM exercise_sets
 		WHERE session_exercise_id = $1
-		ORDER BY created_at ASC
+		ORDER BY position, created_at, id
 	`
 
 	rows, err := r.db.Query(ctx, query, sessionExerciseID)
@@ -731,7 +737,7 @@ func (r *SessionRepository) getExerciseSetsSQLite(ctx context.Context, sessionEx
 		SELECT id, session_exercise_id, reps, weight, completed, notes, created_at, updated_at
 		FROM exercise_sets
 		WHERE session_exercise_id = ?
-		ORDER BY created_at ASC
+		ORDER BY position, created_at, id
 	`
 
 	rows, err := r.sqlite.QueryContext(ctx, query, sessionExerciseID)
@@ -923,4 +929,106 @@ func (r *SessionRepository) getProgressDataSQLite(ctx context.Context, userID st
 	}
 
 	return progress, nil
+}
+
+// SetPatch holds the fields of an exercise set to change; nil fields are kept.
+type SetPatch struct {
+	Reps      *int
+	Weight    *float64
+	Completed *bool
+}
+
+// PatchExerciseSet updates the given fields of one of userID's sets and returns
+// the updated set (ErrNotFound if it's missing or someone else's).
+func (r *SessionRepository) PatchExerciseSet(ctx context.Context, userID, setID string, p SetPatch) (*models.ExerciseSet, error) {
+	seID, err := r.getSessionExerciseIDForSet(ctx, setID)
+	if err != nil || !r.verifySessionExerciseAccess(ctx, userID, seID) {
+		return nil, ErrNotFound
+	}
+	var set models.ExerciseSet
+	err = withTx(ctx, r.db, r.sqlite, r.useSQLite, func(tx tx) error {
+		if err := tx.Exec(ctx, `
+			UPDATE exercise_sets
+			SET reps = COALESCE(?, reps), weight = COALESCE(?, weight),
+				completed = COALESCE(?, completed), updated_at = ?
+			WHERE id = ?`, p.Reps, p.Weight, p.Completed, time.Now(), setID); err != nil {
+			return fmt.Errorf("update exercise set: %w", err)
+		}
+		return tx.QueryRow(ctx, `
+			SELECT id, session_exercise_id, reps, weight, completed, notes, created_at, updated_at
+			FROM exercise_sets WHERE id = ?`, []any{setID},
+			&set.ID, &set.SessionExerciseID, &set.Reps, &set.Weight, &set.Completed, &set.Notes, &set.CreatedAt, &set.UpdatedAt)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &set, nil
+}
+
+// DeleteExerciseSet deletes one of userID's sets (ErrNotFound if it's missing or
+// someone else's).
+func (r *SessionRepository) DeleteExerciseSet(ctx context.Context, userID, setID string) error {
+	seID, err := r.getSessionExerciseIDForSet(ctx, setID)
+	if err != nil || !r.verifySessionExerciseAccess(ctx, userID, seID) {
+		return ErrNotFound
+	}
+	return withTx(ctx, r.db, r.sqlite, r.useSQLite, func(tx tx) error {
+		return tx.Exec(ctx, `DELETE FROM exercise_sets WHERE id = ?`, setID)
+	})
+}
+
+// previousSets returns the completed sets for exerciseID from userID's most recent
+// other session that logged any, in order: "what you did last time".
+func (r *SessionRepository) previousSets(ctx context.Context, userID, exerciseID, currentSessionID string) ([]*models.ExerciseSet, error) {
+	started := "ws.started_at"
+	if r.useSQLite {
+		started = "julianday(ws.started_at)"
+	}
+	query := `
+		SELECT es.id, es.session_exercise_id, es.reps, es.weight, es.completed, es.notes, es.created_at, es.updated_at
+		FROM exercise_sets es
+		WHERE es.completed = ? AND es.session_exercise_id = (
+			SELECT se.id FROM session_exercises se
+			JOIN workout_sessions ws ON ws.id = se.session_id
+			WHERE se.exercise_id = ? AND ws.user_id = ? AND ws.id <> ?
+				AND EXISTS (SELECT 1 FROM exercise_sets c WHERE c.session_exercise_id = se.id AND c.completed = ?)
+			ORDER BY ` + started + ` DESC, se.id
+			LIMIT 1
+		)
+		ORDER BY es.position, es.created_at, es.id`
+	args := []any{true, exerciseID, userID, currentSessionID, true}
+
+	var sets []*models.ExerciseSet
+	scan := func(scan func(dest ...any) error) error {
+		var set models.ExerciseSet
+		if err := scan(&set.ID, &set.SessionExerciseID, &set.Reps, &set.Weight, &set.Completed, &set.Notes, &set.CreatedAt, &set.UpdatedAt); err != nil {
+			return err
+		}
+		sets = append(sets, &set)
+		return nil
+	}
+	if r.useSQLite {
+		rows, err := r.sqlite.QueryContext(ctx, query, args...)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		for rows.Next() {
+			if err := scan(rows.Scan); err != nil {
+				return nil, err
+			}
+		}
+		return sets, rows.Err()
+	}
+	rows, err := r.db.Query(ctx, rebind(query), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		if err := scan(rows.Scan); err != nil {
+			return nil, err
+		}
+	}
+	return sets, rows.Err()
 }
