@@ -184,39 +184,6 @@ func (r *WorkoutRepository) getWorkout(ctx context.Context, userID, id string) (
 }
 
 /**
- * UpdateWorkout updates an existing workout in the database
- *
- * Uses parameterized query with error handling and returns the updated workout.
- *
- * Args:
- * - ctx: Context for the operation
- * - id: ID of the workout to update
- * - name: New name for the workout
- *
- * Returns:
- * - *models.Workout: Updated workout
- * - error: Database error if any
- */
-func (r *WorkoutRepository) UpdateWorkout(ctx context.Context, id, name string) (*models.Workout, error) {
-	query := `
-		UPDATE workouts
-		SET name = $2, updated_at = $3
-		WHERE id = $1
-		RETURNING id, name, created_at, updated_at
-	`
-
-	var workout models.Workout
-	err := r.db.QueryRow(ctx, query, id, name, time.Now()).Scan(
-		&workout.ID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update workout: %w", err)
-	}
-
-	return &workout, nil
-}
-
-/**
  * DeleteWorkout removes a workout from the database
  *
  * Args:
@@ -260,20 +227,31 @@ func (r *WorkoutRepository) CreateExercise(ctx context.Context, userID string, e
 		return fmt.Errorf("workout not found or access denied: %w", err)
 	}
 
+	// The movement and the exercise are created together or not at all.
+	exercise.Name = NormalizeExerciseName(exercise.Name)
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	movementID, err := findOrCreateMovement(ctx, tx, userID, exercise.Name)
+	if err != nil {
+		return err
+	}
 	id := uuid.New().String()
 	now := time.Now()
-
-	query := `
-		INSERT INTO exercises (id, name, sets, reps, weight, workout_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-	`
-
-	_, err = r.db.Exec(ctx, query, id, exercise.Name, exercise.Sets, exercise.Reps, exercise.Weight, exercise.WorkoutID, now, now)
-	if err != nil {
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO exercises (id, name, sets, reps, weight, workout_id, movement_id, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, exercise.Name, exercise.Sets, exercise.Reps, exercise.Weight, exercise.WorkoutID, movementID, now, now); err != nil {
+		return fmt.Errorf("failed to create exercise: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("failed to create exercise: %w", err)
 	}
 
 	exercise.ID = id
+	exercise.MovementID = movementID
 	exercise.CreatedAt = now
 	exercise.UpdatedAt = now
 	return nil
@@ -292,10 +270,10 @@ func (r *WorkoutRepository) CreateExercise(ctx context.Context, userID string, e
  */
 func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID string) ([]*models.Exercise, error) {
 	query := `
-		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
+		SELECT id, name, sets, reps, weight, workout_id, movement_id, created_at, updated_at
 		FROM exercises
 		WHERE workout_id = $1
-		ORDER BY created_at ASC
+		ORDER BY created_at, id
 	`
 
 	rows, err := r.db.Query(ctx, query, workoutID)
@@ -309,7 +287,7 @@ func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID
 		var exercise models.Exercise
 		err := rows.Scan(
 			&exercise.ID, &exercise.Name, &exercise.Sets, &exercise.Reps,
-			&exercise.Weight, &exercise.WorkoutID, &exercise.CreatedAt, &exercise.UpdatedAt,
+			&exercise.Weight, &exercise.WorkoutID, &exercise.MovementID, &exercise.CreatedAt, &exercise.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan exercise: %w", err)
@@ -323,7 +301,7 @@ func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID
 // GetExercise retrieves a single exercise by ID
 func (r *WorkoutRepository) GetExercise(ctx context.Context, exerciseID string) (*models.Exercise, error) {
 	query := `
-		SELECT id, name, sets, reps, weight, workout_id, created_at, updated_at
+		SELECT id, name, sets, reps, weight, workout_id, movement_id, created_at, updated_at
 		FROM exercises
 		WHERE id = $1
 	`
@@ -331,40 +309,13 @@ func (r *WorkoutRepository) GetExercise(ctx context.Context, exerciseID string) 
 	var exercise models.Exercise
 	err := r.db.QueryRow(ctx, query, exerciseID).Scan(
 		&exercise.ID, &exercise.Name, &exercise.Sets, &exercise.Reps,
-		&exercise.Weight, &exercise.WorkoutID, &exercise.CreatedAt, &exercise.UpdatedAt,
+		&exercise.Weight, &exercise.WorkoutID, &exercise.MovementID, &exercise.CreatedAt, &exercise.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get exercise: %w", err)
 	}
 
 	return &exercise, nil
-}
-
-/**
- * UpdateExercise updates an existing exercise in the database
- *
- * Uses parameterized query with error handling.
- *
- * Args:
- * - ctx: Context for the operation
- * - exercise: Pointer to the exercise model to update
- *
- * Returns:
- * - error: Database error if any
- */
-func (r *WorkoutRepository) UpdateExercise(ctx context.Context, exercise *models.Exercise) error {
-	query := `
-		UPDATE exercises
-		SET name = $2, sets = $3, reps = $4, weight = $5, updated_at = $6
-		WHERE id = $1
-	`
-
-	_, err := r.db.Exec(ctx, query, exercise.ID, exercise.Name, exercise.Sets, exercise.Reps, exercise.Weight, time.Now())
-	if err != nil {
-		return fmt.Errorf("failed to update exercise: %w", err)
-	}
-
-	return nil
 }
 
 /**

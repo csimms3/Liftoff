@@ -39,14 +39,29 @@ type WorkoutTemplate struct {
 
 // Exercise represents an exercise within a workout
 type Exercise struct {
-	ID        string    `json:"id" db:"id"`
-	Name      string    `json:"name" db:"name"`
-	Sets      int       `json:"sets" db:"sets"`
-	Reps      int       `json:"reps" db:"reps"`
-	Weight    float64   `json:"weight" db:"weight"`
-	WorkoutID string    `json:"workout_id" db:"workout_id"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID        string  `json:"id" db:"id"`
+	Name      string  `json:"name" db:"name"`
+	Sets      int     `json:"sets" db:"sets"`
+	Reps      int     `json:"reps" db:"reps"`
+	Weight    float64 `json:"weight" db:"weight"`
+	WorkoutID string  `json:"workout_id" db:"workout_id"`
+	// MovementID is the catalog entry this exercise performs (shared across
+	// workouts that use the same exercise name).
+	MovementID string    `json:"movement_id" db:"movement_id"`
+	CreatedAt  time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// Movement is one of a user's exercises as a catalog entry ("Barbell Squat"):
+// the identity that history, previous values and progress follow.
+type Movement struct {
+	ID          string    `json:"id" db:"id"`
+	UserID      string    `json:"-" db:"user_id"`
+	Name        string    `json:"name" db:"name"`
+	Category    string    `json:"category" db:"category"`
+	RestSeconds int       `json:"rest_seconds" db:"rest_seconds"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // ExerciseTemplate represents a predefined exercise template for quick addition
@@ -60,23 +75,30 @@ type ExerciseTemplate struct {
 
 // WorkoutSession represents an active or completed workout session
 type WorkoutSession struct {
-	ID        string             `json:"id" db:"id"`
-	UserID    string             `json:"-" db:"user_id"`
-	WorkoutID string             `json:"workout_id" db:"workout_id"`
-	Workout   *Workout           `json:"workout" db:"-"`
-	StartedAt time.Time          `json:"started_at" db:"started_at"`
-	EndedAt   *time.Time         `json:"ended_at" db:"ended_at"`
-	IsActive  bool               `json:"is_active" db:"is_active"`
-	Exercises []*SessionExercise `json:"exercises" db:"-"`
-	CreatedAt time.Time          `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time          `json:"updated_at" db:"updated_at"`
+	ID     string `json:"id" db:"id"`
+	UserID string `json:"-" db:"user_id"`
+	// WorkoutID is empty once the workout has been deleted; WorkoutName keeps the
+	// name the session was performed under.
+	WorkoutID   string             `json:"workout_id" db:"workout_id"`
+	WorkoutName string             `json:"workout_name" db:"workout_name"`
+	Workout     *Workout           `json:"workout" db:"-"`
+	StartedAt   time.Time          `json:"started_at" db:"started_at"`
+	EndedAt     *time.Time         `json:"ended_at" db:"ended_at"`
+	IsActive    bool               `json:"is_active" db:"is_active"`
+	Exercises   []*SessionExercise `json:"exercises" db:"-"`
+	CreatedAt   time.Time          `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time          `json:"updated_at" db:"updated_at"`
 }
 
 // SessionExercise represents an exercise performed during a workout session
 type SessionExercise struct {
-	ID         string         `json:"id" db:"id"`
-	SessionID  string         `json:"session_id" db:"session_id"`
+	ID        string `json:"id" db:"id"`
+	SessionID string `json:"session_id" db:"session_id"`
+	// ExerciseID is the workout's exercise it came from; empty once that exercise
+	// has been removed from the workout. Name is kept as performed.
 	ExerciseID string         `json:"exercise_id" db:"exercise_id"`
+	MovementID string         `json:"movement_id" db:"movement_id"`
+	Name       string         `json:"name" db:"name"`
 	Exercise   *Exercise      `json:"exercise" db:"-"`
 	Sets       []*ExerciseSet `json:"sets" db:"-"`
 	// Previous holds the completed sets for this exercise from the user's last

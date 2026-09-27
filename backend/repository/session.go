@@ -59,15 +59,15 @@ func (r *SessionRepository) StartSession(ctx context.Context, userID, workoutID 
 
 		sessionID := uuid.New().String()
 		if err := tx.Exec(ctx, `
-			INSERT INTO workout_sessions (id, user_id, workout_id, started_at, is_active, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)`, sessionID, userID, workoutID, now, true, now, now); err != nil {
+			INSERT INTO workout_sessions (id, user_id, workout_id, workout_name, started_at, is_active, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, sessionID, userID, workoutID, workout.Name, now, true, now, now); err != nil {
 			return fmt.Errorf("create session: %w", err)
 		}
 		for pos, exercise := range workout.Exercises {
 			seID := uuid.New().String()
 			if err := tx.Exec(ctx, `
-				INSERT INTO session_exercises (id, session_id, exercise_id, position, created_at, updated_at)
-				VALUES ($1, $2, $3, $4, $5, $6)`, seID, sessionID, exercise.ID, pos, now, now); err != nil {
+				INSERT INTO session_exercises (id, session_id, exercise_id, movement_id, name, position, created_at, updated_at)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, seID, sessionID, exercise.ID, exercise.MovementID, exercise.Name, pos, now, now); err != nil {
 				return fmt.Errorf("create session exercise: %w", err)
 			}
 			for i := 0; i < exercise.Sets; i++ {
@@ -99,15 +99,21 @@ func (r *SessionRepository) GetActiveSessionWithExercises(ctx context.Context, u
 		return nil, fmt.Errorf("failed to get session exercises: %w", err)
 	}
 
-	// Populate exercises with sets and exercise details
+	// Populate exercises with sets and exercise details. A movement can appear
+	// more than once (e.g. top sets and back-off sets); its n-th occurrence gets
+	// the n-th occurrence's sets from last time.
+	occurrence := map[string]int{}
 	for _, se := range sessionExercises {
-		// Get exercise details
-		workoutRepo := NewWorkoutRepository(r.db)
-		exercise, err := workoutRepo.GetExercise(ctx, se.ExerciseID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get exercise: %w", err)
+		// The workout's exercise (its plan), or just the name if it has since been
+		// removed from the workout.
+		se.Exercise = &models.Exercise{Name: se.Name, MovementID: se.MovementID}
+		if se.ExerciseID != "" {
+			exercise, err := NewWorkoutRepository(r.db).GetExercise(ctx, se.ExerciseID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get exercise: %w", err)
+			}
+			se.Exercise = exercise
 		}
-		se.Exercise = exercise
 
 		// Get sets for this exercise
 		sets, err := r.GetExerciseSets(ctx, se.ID)
@@ -116,44 +122,54 @@ func (r *SessionRepository) GetActiveSessionWithExercises(ctx context.Context, u
 		}
 		se.Sets = sets
 
-		previous, err := r.previousSets(ctx, userID, se.ExerciseID, session.ID)
+		previous, err := r.previousSets(ctx, userID, se.MovementID, session.ID, occurrence[se.MovementID])
+		occurrence[se.MovementID]++
 		if err != nil {
 			return nil, fmt.Errorf("failed to get previous sets: %w", err)
 		}
 		se.Previous = previous
 	}
 
-	// Get workout details (session already filtered by user)
-	workoutRepo := NewWorkoutRepository(r.db)
-	workout, err := workoutRepo.GetWorkout(ctx, userID, session.WorkoutID)
+	// The workout, or just its name if it has since been deleted.
+	session.Workout = workoutStub(session)
+	if session.WorkoutID != "" {
+		workout, err := NewWorkoutRepository(r.db).GetWorkout(ctx, userID, session.WorkoutID)
+		if err != nil && !errors.Is(err, ErrNotFound) {
+			return nil, fmt.Errorf("failed to get workout: %w", err)
+		}
+		if workout != nil {
+			session.Workout = workout
+		}
+	}
+	session.Exercises = sessionExercises
+	return session, nil
+}
+
+// sessionColumns and scanSession read a workout_sessions row. workout_id is NULL
+// once the workout has been deleted; the session keeps workout_name.
+const sessionColumns = `id, user_id, COALESCE(workout_id, ''), workout_name, started_at, ended_at, is_active, created_at, updated_at`
+
+// workoutStub is the session's workout as far as the session knows it: its id
+// (empty if deleted) and the name it was performed under.
+func workoutStub(s *models.WorkoutSession) *models.Workout {
+	return &models.Workout{ID: s.WorkoutID, Name: s.WorkoutName, Exercises: []models.Exercise{}}
+}
+
+func scanSession(row pgx.Row) (*models.WorkoutSession, error) {
+	var s models.WorkoutSession
+	err := row.Scan(&s.ID, &s.UserID, &s.WorkoutID, &s.WorkoutName, &s.StartedAt, &s.EndedAt, &s.IsActive, &s.CreatedAt, &s.UpdatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get workout: %w", err)
+		return nil, err
 	}
-
-	// Create a session with exercises populated
-	sessionWithExercises := &models.WorkoutSession{
-		ID:        session.ID,
-		WorkoutID: session.WorkoutID,
-		StartedAt: session.StartedAt,
-		EndedAt:   session.EndedAt,
-		IsActive:  session.IsActive,
-		CreatedAt: session.CreatedAt,
-		UpdatedAt: session.UpdatedAt,
-		Workout:   workout,
-		Exercises: sessionExercises,
-	}
-
-	return sessionWithExercises, nil
+	return &s, nil
 }
 
 // GetCompletedSessions returns all completed workout sessions for the user
 func (r *SessionRepository) GetCompletedSessions(ctx context.Context, userID string) ([]*models.WorkoutSession, error) {
-	query := `
-		SELECT id, user_id, workout_id, started_at, ended_at, is_active, created_at, updated_at
+	query := `SELECT ` + sessionColumns + `
 		FROM workout_sessions
 		WHERE user_id = $1 AND is_active = false AND ended_at IS NOT NULL
-		ORDER BY ended_at DESC
-	`
+		ORDER BY ended_at DESC`
 
 	rows, err := r.db.Query(ctx, query, userID)
 	if err != nil {
@@ -163,76 +179,39 @@ func (r *SessionRepository) GetCompletedSessions(ctx context.Context, userID str
 
 	var sessions []*models.WorkoutSession
 	for rows.Next() {
-		var session models.WorkoutSession
-		err := rows.Scan(
-			&session.ID, &session.UserID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
-			&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
-		)
+		session, err := scanSession(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session: %w", err)
 		}
-		sessions = append(sessions, &session)
+		session.Workout = workoutStub(session)
+		sessions = append(sessions, session)
 	}
 
 	return sessions, nil
 }
 
 func (r *SessionRepository) GetActiveSession(ctx context.Context, userID string) (*models.WorkoutSession, error) {
-	query := `
-		SELECT id, user_id, workout_id, started_at, ended_at, is_active, created_at, updated_at
+	session, err := scanSession(r.db.QueryRow(ctx, `SELECT `+sessionColumns+`
 		FROM workout_sessions
 		WHERE user_id = $1 AND is_active = true
 		ORDER BY started_at DESC
-		LIMIT 1
-	`
-
-	var session models.WorkoutSession
-	err := r.db.QueryRow(ctx, query, userID).Scan(
-		&session.ID, &session.UserID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
-		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
-	)
+		LIMIT 1`, userID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil // no active session
+	}
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return nil, nil // No active session found
-		}
 		return nil, fmt.Errorf("failed to get active session: %w", err)
 	}
-
-	return &session, nil
-}
-
-func (r *SessionRepository) GetSession(ctx context.Context, id string) (*models.WorkoutSession, error) {
-	query := `
-		SELECT id, workout_id, started_at, ended_at, is_active, created_at, updated_at
-		FROM workout_sessions
-		WHERE id = $1
-	`
-
-	var session models.WorkoutSession
-	err := r.db.QueryRow(ctx, query, id).Scan(
-		&session.ID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
-		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get session: %w", err)
-	}
-
-	return &session, nil
+	return session, nil
 }
 
 func (r *SessionRepository) EndSession(ctx context.Context, userID, id string) (*models.WorkoutSession, error) {
-	query := `
+	now := time.Now()
+	session, err := scanSession(r.db.QueryRow(ctx, `
 		UPDATE workout_sessions
-		SET ended_at = $2, is_active = false, updated_at = $3
-		WHERE id = $1 AND user_id = $4
-		RETURNING id, user_id, workout_id, started_at, ended_at, is_active, created_at, updated_at
-	`
-
-	var session models.WorkoutSession
-	err := r.db.QueryRow(ctx, query, id, time.Now(), time.Now(), userID).Scan(
-		&session.ID, &session.UserID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
-		&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
-	)
+		SET ended_at = $2, is_active = false, updated_at = $2
+		WHERE id = $1 AND user_id = $3
+		RETURNING `+sessionColumns, id, now, userID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -240,36 +219,7 @@ func (r *SessionRepository) EndSession(ctx context.Context, userID, id string) (
 		return nil, fmt.Errorf("failed to end session: %w", err)
 	}
 
-	return &session, nil
-}
-
-func (r *SessionRepository) GetSessions(ctx context.Context) ([]*models.WorkoutSession, error) {
-	query := `
-		SELECT id, workout_id, started_at, ended_at, is_active, created_at, updated_at
-		FROM workout_sessions
-		ORDER BY started_at DESC
-	`
-
-	rows, err := r.db.Query(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sessions: %w", err)
-	}
-	defer rows.Close()
-
-	var sessions []*models.WorkoutSession
-	for rows.Next() {
-		var session models.WorkoutSession
-		err := rows.Scan(
-			&session.ID, &session.WorkoutID, &session.StartedAt, &session.EndedAt,
-			&session.IsActive, &session.CreatedAt, &session.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan session: %w", err)
-		}
-		sessions = append(sessions, &session)
-	}
-
-	return sessions, nil
+	return session, nil
 }
 
 // SessionExercise operations
@@ -288,15 +238,17 @@ func (r *SessionRepository) CreateSessionExercise(ctx context.Context, userID, s
 	now := time.Now()
 
 	query := `
-		INSERT INTO session_exercises (id, session_id, exercise_id, position, created_at, updated_at)
-		VALUES ($1, $2, $3, (SELECT COALESCE(MAX(position) + 1, 0) FROM session_exercises WHERE session_id = $6), $4, $5)
-		RETURNING id, session_id, exercise_id, created_at, updated_at
+		INSERT INTO session_exercises (id, session_id, exercise_id, movement_id, name, position, created_at, updated_at)
+		SELECT $1, $2, e.id, e.movement_id, e.name,
+			(SELECT COALESCE(MAX(position) + 1, 0) FROM session_exercises WHERE session_id = $5), $4, $4
+		FROM exercises e WHERE e.id = $3
+		RETURNING id, session_id, COALESCE(exercise_id, ''), movement_id, name, created_at, updated_at
 	`
 
 	var sessionExercise models.SessionExercise
-	err = r.db.QueryRow(ctx, query, id, sessionID, exerciseID, now, now, sessionID).Scan(
+	err = r.db.QueryRow(ctx, query, id, sessionID, exerciseID, now, sessionID).Scan(
 		&sessionExercise.ID, &sessionExercise.SessionID, &sessionExercise.ExerciseID,
-		&sessionExercise.CreatedAt, &sessionExercise.UpdatedAt,
+		&sessionExercise.MovementID, &sessionExercise.Name, &sessionExercise.CreatedAt, &sessionExercise.UpdatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session exercise: %w", err)
@@ -324,7 +276,7 @@ func (r *SessionRepository) getSessionForUser(ctx context.Context, userID, sessi
 
 func (r *SessionRepository) GetSessionExercises(ctx context.Context, sessionID string) ([]*models.SessionExercise, error) {
 	query := `
-		SELECT id, session_id, exercise_id, created_at, updated_at
+		SELECT id, session_id, COALESCE(exercise_id, ''), movement_id, name, created_at, updated_at
 		FROM session_exercises
 		WHERE session_id = $1
 		ORDER BY position, created_at, id
@@ -341,7 +293,7 @@ func (r *SessionRepository) GetSessionExercises(ctx context.Context, sessionID s
 		var sessionExercise models.SessionExercise
 		err := rows.Scan(
 			&sessionExercise.ID, &sessionExercise.SessionID, &sessionExercise.ExerciseID,
-			&sessionExercise.CreatedAt, &sessionExercise.UpdatedAt,
+			&sessionExercise.MovementID, &sessionExercise.Name, &sessionExercise.CreatedAt, &sessionExercise.UpdatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan session exercise: %w", err)
@@ -471,16 +423,16 @@ func (r *SessionRepository) CompleteExerciseSet(ctx context.Context, userID, ses
 func (r *SessionRepository) GetProgressData(ctx context.Context, userID string) ([]map[string]interface{}, error) {
 	query := `
 		SELECT 
-			e.name as exercise_name,
+			m.name as exercise_name,
 			DATE(es.created_at) as workout_date,
 			MAX(es.weight) as max_weight,
 			SUM(es.weight * es.reps) as total_volume
 		FROM exercise_sets es
 		JOIN session_exercises se ON es.session_exercise_id = se.id
 		JOIN workout_sessions ws ON se.session_id = ws.id
-		JOIN exercises e ON se.exercise_id = e.id
+		JOIN movements m ON m.id = se.movement_id
 		WHERE es.completed = true AND ws.user_id = $1
-		GROUP BY e.name, DATE(es.created_at)
+		GROUP BY m.id, m.name, DATE(es.created_at)
 		ORDER BY workout_date DESC, exercise_name
 	`
 
@@ -559,22 +511,34 @@ func (r *SessionRepository) DeleteExerciseSet(ctx context.Context, userID, setID
 	})
 }
 
-// previousSets returns the completed sets for exerciseID from userID's most recent
-// other session that logged any, in order: "what you did last time".
-func (r *SessionRepository) previousSets(ctx context.Context, userID, exerciseID, currentSessionID string) ([]*models.ExerciseSet, error) {
+// previousSets returns "what you did last time" for movementID: the completed sets
+// from userID's most recent other session that logged any, whichever workout that
+// was in. When more than one of that session's rows for the movement logged sets,
+// occurrence (0-based, in position order) picks which; past the last, the last.
+func (r *SessionRepository) previousSets(ctx context.Context, userID, movementID, currentSessionID string, occurrence int) ([]*models.ExerciseSet, error) {
 	query := `
+		WITH last AS (
+			SELECT ws.id FROM workout_sessions ws
+			JOIN session_exercises se ON se.session_id = ws.id
+			WHERE se.movement_id = $1 AND ws.user_id = $2 AND ws.id <> $3
+				AND EXISTS (SELECT 1 FROM exercise_sets c WHERE c.session_exercise_id = se.id AND c.completed)
+			ORDER BY ws.started_at DESC, ws.id
+			LIMIT 1
+		), occurrences AS (
+			-- Only rows that logged something: a quick log leaves the planned row
+			-- empty and puts the set in an extra row after it.
+			SELECT se.id, ROW_NUMBER() OVER (ORDER BY se.position, se.created_at, se.id) - 1 AS n
+			FROM session_exercises se
+			WHERE se.session_id = (SELECT id FROM last) AND se.movement_id = $1
+				AND EXISTS (SELECT 1 FROM exercise_sets c WHERE c.session_exercise_id = se.id AND c.completed)
+		)
 		SELECT es.id, es.session_exercise_id, es.reps, es.weight, es.completed, es.notes, es.created_at, es.updated_at
 		FROM exercise_sets es
 		WHERE es.completed AND es.session_exercise_id = (
-			SELECT se.id FROM session_exercises se
-			JOIN workout_sessions ws ON ws.id = se.session_id
-			WHERE se.exercise_id = $1 AND ws.user_id = $2 AND ws.id <> $3
-				AND EXISTS (SELECT 1 FROM exercise_sets c WHERE c.session_exercise_id = se.id AND c.completed)
-			ORDER BY ws.started_at DESC, se.id
-			LIMIT 1
+			SELECT id FROM occurrences WHERE n = LEAST($4, (SELECT MAX(n) FROM occurrences))
 		)
 		ORDER BY es.position, es.created_at, es.id`
-	rows, err := r.db.Query(ctx, query, exerciseID, userID, currentSessionID)
+	rows, err := r.db.Query(ctx, query, movementID, userID, currentSessionID, occurrence)
 	if err != nil {
 		return nil, err
 	}
