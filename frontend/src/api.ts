@@ -50,7 +50,9 @@ export interface Exercise {
 
 export interface WorkoutSession {
 	id: string;
+	/** Empty once the workout has been deleted; workout_name is kept. */
 	workout_id: string;
+	workout_name: string;
 	workout: Workout;
 	started_at: string;
 	ended_at?: string;
@@ -60,7 +62,10 @@ export interface WorkoutSession {
 
 export interface SessionExercise {
 	id: string;
+	/** Empty once the exercise has been removed from its workout; name is kept. */
 	exercise_id: string;
+	movement_id: string;
+	name: string;
 	exercise: Exercise;
 	sets: ExerciseSet[];
 	/** Completed sets from the last session that logged this exercise, in order. */

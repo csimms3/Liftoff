@@ -3,7 +3,9 @@ package database_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
+	"testing/fstest"
 
 	"liftoff/backend/auth"
 	"liftoff/backend/database"
@@ -130,5 +132,77 @@ func TestMigrate_LocksAdminEmailWithOtherID(t *testing.T) {
 	}
 	if n := pgCount(t, pool, "SELECT COUNT(*) FROM workouts WHERE user_id = $1", legacyOwnerID); n != 1 {
 		t.Errorf("pre-account workout not assigned to legacy owner (%d)", n)
+	}
+}
+
+// upTo returns the embedded migrations up to and including version.
+func upTo(t *testing.T, version string) fstest.MapFS {
+	t.Helper()
+	fsys := fstest.MapFS{}
+	for _, name := range migrationFiles(t) {
+		if strings.TrimSuffix(name, ".sql") > version {
+			continue
+		}
+		body, err := migrations.FS.ReadFile(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		fsys[name] = &fstest.MapFile{Data: body}
+	}
+	return fsys
+}
+
+// 008 on a database with history: same-named exercises (any case/spacing) in
+// different workouts become one movement per user, sessions get their names
+// copied, and deleting a workout afterwards keeps its history.
+func TestMigrate_MovementsBackfillAndHistorySafety(t *testing.T) {
+	pool := testdb.PostgresEmpty(t)
+	ctx := context.Background()
+	if err := database.MigrateFS(ctx, pool, upTo(t, "007_positions")); err != nil {
+		t.Fatal(err)
+	}
+	testdb.Exec(t, pool,
+		`INSERT INTO users (id, email, password_hash) VALUES ('u1','me@example.com','x'), ('u2','other@example.com','x')`,
+		`INSERT INTO workouts (id, name, user_id) VALUES ('wa','Push A','u1'), ('wb','Push B','u1'), ('wo','Theirs','u2')`,
+		`INSERT INTO exercises (id, name, sets, reps, weight, workout_id) VALUES
+			('ea','Bench Press',3,8,60,'wa'), ('eb','  bench press ',3,8,60,'wb'), ('ec','Squat',3,5,100,'wb'),
+			('eo','Bench Press',3,8,60,'wo')`,
+		`INSERT INTO workout_sessions (id, workout_id, user_id, is_active, ended_at) VALUES ('s1','wa','u1',false,NOW())`,
+		`INSERT INTO session_exercises (id, session_id, exercise_id) VALUES ('se1','s1','ea')`,
+		`INSERT INTO exercise_sets (id, session_exercise_id, reps, weight, completed) VALUES ('x1','se1',8,62.5,true)`,
+	)
+
+	if err := database.Migrate(ctx, pool); err != nil {
+		t.Fatalf("migrate 008: %v", err)
+	}
+
+	count := func(q string) int {
+		var n int
+		if err := pool.QueryRow(ctx, q).Scan(&n); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+		return n
+	}
+	if n := count(`SELECT COUNT(*) FROM movements WHERE user_id = 'u1'`); n != 2 {
+		t.Errorf("u1 has %d movements, want 2 (bench merged, squat)", n)
+	}
+	if n := count(`SELECT COUNT(DISTINCT movement_id) FROM exercises WHERE id IN ('ea','eb')`); n != 1 {
+		t.Error("Bench Press and '  bench press ' should share one movement")
+	}
+	if n := count(`SELECT COUNT(*) FROM exercises e JOIN movements m ON m.id = e.movement_id WHERE e.id = 'eo' AND m.user_id = 'u2'`); n != 1 {
+		t.Error("another user's exercise must get that user's own movement")
+	}
+	var name, workoutName string
+	pool.QueryRow(ctx, `SELECT se.name, ws.workout_name FROM session_exercises se JOIN workout_sessions ws ON ws.id = se.session_id WHERE se.id = 'se1'`).Scan(&name, &workoutName)
+	if name != "Bench Press" || workoutName != "Push A" {
+		t.Errorf("snapshot names = %q / %q, want Bench Press / Push A", name, workoutName)
+	}
+
+	testdb.Exec(t, pool, `DELETE FROM workouts WHERE id = 'wa'`)
+	if n := count(`SELECT COUNT(*) FROM exercise_sets WHERE id = 'x1'`); n != 1 {
+		t.Error("deleting the workout deleted its logged sets")
+	}
+	if n := count(`SELECT COUNT(*) FROM workout_sessions WHERE id = 's1' AND workout_id IS NULL`); n != 1 {
+		t.Error("session should be kept with its workout link cleared")
 	}
 }

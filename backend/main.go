@@ -341,7 +341,7 @@ func main() {
 				Weight    float64 `json:"weight"`
 				WorkoutID string  `json:"workout_id" binding:"required"`
 			}
-			if err := c.ShouldBindJSON(&input); err != nil {
+			if err := c.ShouldBindJSON(&input); err != nil || repository.NormalizeExerciseName(input.Name) == "" {
 				badRequest(c)
 				return
 			}

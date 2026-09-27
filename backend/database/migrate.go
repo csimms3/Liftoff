@@ -27,10 +27,12 @@ const createSchemaMigrations = `CREATE TABLE IF NOT EXISTS schema_migrations (
 // Databases created before schema_migrations existed are handled because every
 // migration is idempotent (IF NOT EXISTS / conditional updates).
 func Migrate(ctx context.Context, pool *pgxpool.Pool) error {
-	return migrateFS(ctx, pool, migrations.FS)
+	return MigrateFS(ctx, pool, migrations.FS)
 }
 
-func migrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {
+// MigrateFS applies the NNN_*.sql files in fsys like Migrate. Tests use it to
+// build a database as of an older schema.
+func MigrateFS(ctx context.Context, pool *pgxpool.Pool, fsys fs.FS) error {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return fmt.Errorf("acquire connection: %w", err)

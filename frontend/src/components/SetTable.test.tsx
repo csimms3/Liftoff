@@ -10,6 +10,8 @@ function exercise(sets: ExerciseSet[], previous: ExerciseSet[] = []): SessionExe
   return {
     id: 'se1',
     exercise_id: 'bench',
+    movement_id: 'm-bench',
+    name: 'Bench',
     exercise: { id: 'bench', name: 'Bench', sets: 3, reps: 8, weight: 100, workout_id: 'w1' } as SessionExercise['exercise'],
     sets,
     previous,
