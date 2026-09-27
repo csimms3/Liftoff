@@ -12,7 +12,7 @@ import (
 )
 
 func TestStartSession_CreatesExercisesAndSets(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 3, 2)
@@ -31,7 +31,7 @@ func TestStartSession_CreatesExercisesAndSets(t *testing.T) {
 }
 
 func TestStartSession_OtherUsersWorkoutWritesNothing(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		owner := e.user(t, "owner@example.com")
 		other := e.user(t, "other@example.com")
@@ -50,7 +50,7 @@ func TestStartSession_OtherUsersWorkoutWritesNothing(t *testing.T) {
 
 // Starting a workout ends the one still active, at its last logged activity.
 func TestStartSession_EndsPreviousActiveSession(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 2)
@@ -59,16 +59,9 @@ func TestStartSession_EndsPreviousActiveSession(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// A set logged after the session started, in the server's zone as the app
-		// writes it. On SQLite it's written at UTC-12 instead: a later instant whose
-		// text sorts before the other rows', so comparing strings would pick the
-		// wrong row.
+		// A set logged after the session started, written as the app writes times.
 		lastSet := time.Now().Add(30 * time.Minute).Truncate(time.Second)
-		written := lastSet
-		if e.isSQLite {
-			written = lastSet.In(time.FixedZone("UTC-12", -12*60*60))
-		}
-		e.exec(t, `UPDATE exercise_sets SET updated_at = ? WHERE id = ?`, written, first.Exercises[0].Sets[1].ID)
+		e.exec(t, `UPDATE exercise_sets SET updated_at = $1 WHERE id = $2`, lastSet, first.Exercises[0].Sets[1].ID)
 
 		second, err := e.sessions.StartSession(ctx, me, w.ID)
 		if err != nil {
@@ -77,24 +70,21 @@ func TestStartSession_EndsPreviousActiveSession(t *testing.T) {
 		if second.ID == first.ID {
 			t.Fatal("second start returned the first session")
 		}
-		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions WHERE user_id = ? AND is_active = ?`, me, true); n != 1 {
+		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions WHERE user_id = $1 AND is_active = $2`, me, true); n != 1 {
 			t.Errorf("%d active sessions, want 1", n)
 		}
 		completed, err := e.sessions.GetCompletedSessions(ctx, me)
 		if err != nil || len(completed) != 1 || completed[0].ID != first.ID {
 			t.Fatalf("completed = %v (err %v), want just the first session", completed, err)
 		}
-		// Postgres TIMESTAMP columns hold wall-clock time (read back labelled UTC);
-		// SQLite keeps the offset. Compare the wall clock in the server's zone.
+		// TIMESTAMP columns hold wall-clock time (read back labelled UTC), so compare
+		// the wall clock in the server's zone.
 		const wall = "2006-01-02 15:04:05"
 		ended := completed[0].EndedAt
 		if ended == nil {
 			t.Fatal("first session has no ended_at")
 		}
 		got := *ended
-		if e.isSQLite {
-			got = got.In(time.Local)
-		}
 		if got.Format(wall) != lastSet.Format(wall) {
 			t.Errorf("first session ended_at = %s, want its last activity %s", got.Format(wall), lastSet.Format(wall))
 		}
@@ -104,7 +94,7 @@ func TestStartSession_EndsPreviousActiveSession(t *testing.T) {
 // A failure partway through leaves no partial session and doesn't end the
 // previous one.
 func TestStartSession_FailureRollsBackEverything(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 2)
@@ -114,11 +104,7 @@ func TestStartSession_FailureRollsBackEverything(t *testing.T) {
 		}
 
 		// Make every set insert fail, after the session and first exercise rows.
-		if e.isSQLite {
-			e.exec(t, `CREATE TRIGGER fail_sets BEFORE INSERT ON exercise_sets BEGIN SELECT RAISE(ABORT, 'boom'); END`)
-		} else {
-			e.exec(t, `ALTER TABLE exercise_sets ADD CONSTRAINT fail_sets CHECK (reps < 0) NOT VALID`)
-		}
+		e.exec(t, `ALTER TABLE exercise_sets ADD CONSTRAINT fail_sets CHECK (reps < 0) NOT VALID`)
 		if _, err := e.sessions.StartSession(ctx, me, w.ID); err == nil {
 			t.Fatal("want an error when set inserts fail")
 		}
@@ -126,14 +112,14 @@ func TestStartSession_FailureRollsBackEverything(t *testing.T) {
 		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions`); n != 1 {
 			t.Errorf("%d sessions, want 1 (the failed start must leave nothing)", n)
 		}
-		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions WHERE id = ? AND is_active = ?`, first.ID, true); n != 1 {
+		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions WHERE id = $1 AND is_active = $2`, first.ID, true); n != 1 {
 			t.Error("the previous session was ended although the new one failed")
 		}
 	})
 }
 
 func TestStartSession_ConcurrentStartsLeaveOneActive(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 2)
@@ -149,7 +135,7 @@ func TestStartSession_ConcurrentStartsLeaveOneActive(t *testing.T) {
 			}()
 		}
 		wg.Wait()
-		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions WHERE user_id = ? AND is_active = ?`, me, true); n != 1 {
+		if n := e.count(t, `SELECT COUNT(*) FROM workout_sessions WHERE user_id = $1 AND is_active = $2`, me, true); n != 1 {
 			t.Errorf("%d active sessions after concurrent starts, want 1", n)
 		}
 	})
@@ -158,7 +144,7 @@ func TestStartSession_ConcurrentStartsLeaveOneActive(t *testing.T) {
 // Every set/session-exercise method checks ownership; an empty user ID is not a
 // bypass.
 func TestSessionMethods_RejectOtherUsers(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		owner := e.user(t, "owner@example.com")
 		other := e.user(t, "other@example.com")
@@ -197,7 +183,7 @@ func TestSessionMethods_RejectOtherUsers(t *testing.T) {
 }
 
 func TestEndSession_And_CompleteSet_Errors(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		owner := e.user(t, "owner@example.com")
 		other := e.user(t, "other@example.com")
@@ -221,7 +207,7 @@ func TestEndSession_And_CompleteSet_Errors(t *testing.T) {
 }
 
 func TestPatchExerciseSet(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		other := e.user(t, "other@example.com")
@@ -254,7 +240,7 @@ func TestPatchExerciseSet(t *testing.T) {
 }
 
 func TestDeleteExerciseSet(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		other := e.user(t, "other@example.com")
@@ -280,7 +266,7 @@ func TestDeleteExerciseSet(t *testing.T) {
 // Sets keep their order after edits (on Postgres an UPDATE can move a row, and
 // all planned sets share one created_at), and new sets go last.
 func TestExerciseSets_StableOrder(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 4, 3, 2)
@@ -319,7 +305,7 @@ func TestExerciseSets_StableOrder(t *testing.T) {
 }
 
 func TestActiveSession_PreviousSets(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 3)
@@ -351,7 +337,7 @@ func TestActiveSession_PreviousSets(t *testing.T) {
 
 // Exercises added to a session mid-workout go after the planned ones.
 func TestCreateSessionExercise_AppendsInOrder(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 2, 2)
@@ -374,7 +360,7 @@ func TestCreateSessionExercise_AppendsInOrder(t *testing.T) {
 }
 
 func TestPatchExerciseSet_DeletedSetIsNotFound(t *testing.T) {
-	forEachBackend(t, func(t *testing.T, e *env) {
+	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
 		w := e.workout(t, me, "Push", 2)

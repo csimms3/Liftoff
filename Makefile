@@ -1,4 +1,4 @@
-.PHONY: help build run dev test clean db-up db-down db-reset deps health
+.PHONY: help build run dev test clean db-up db-down deps health
 
 help:
 	@echo "Liftoff Development Commands"
@@ -10,14 +10,13 @@ help:
 	@echo "  build    - Build the Go binary"
 	@echo "  run      - Build and run the server"
 	@echo "  dev      - Run the server without building (go run .)"
-	@echo "  test     - Run all tests"
+	@echo "  test     - Run all backend tests (starts the dev database)"
 	@echo "  clean    - Remove build artifacts"
 	@echo "  deps     - Tidy and download Go dependencies"
 	@echo ""
-	@echo "Database (PostgreSQL via Docker):"
-	@echo "  db-up    - Start PostgreSQL with Docker"
-	@echo "  db-down  - Stop PostgreSQL"
-	@echo "  db-reset - Reset PostgreSQL (stop + start)"
+	@echo "Database (project-local PostgreSQL in .pgdata/, see scripts/dev-db.sh):"
+	@echo "  db-up    - Start it"
+	@echo "  db-down  - Stop it"
 	@echo ""
 	@echo "  health   - Check server health endpoint"
 
@@ -36,7 +35,8 @@ dev:
 
 test:
 	@echo "Running backend tests..."
-	cd backend && go test ./...
+	./scripts/dev-db.sh start
+	cd backend && LIFTOFF_TEST_DATABASE_URL="$$(../scripts/dev-db.sh url test)" go test ./...
 
 clean:
 	@echo "Cleaning build artifacts..."
@@ -47,17 +47,12 @@ deps:
 	@echo "Tidying dependencies..."
 	cd backend && go mod tidy && go mod download
 
-# PostgreSQL via Docker
+# Project-local PostgreSQL (scripts/dev-db.sh)
 db-up:
-	@echo "Starting PostgreSQL..."
-	docker-compose up -d postgres
-	@until docker-compose exec -T postgres pg_isready -U postgres; do sleep 1; done
-	@echo "Database ready."
+	./scripts/dev-db.sh start
 
 db-down:
-	docker-compose down
-
-db-reset: db-down db-up
+	./scripts/dev-db.sh stop
 
 # Misc
 health:

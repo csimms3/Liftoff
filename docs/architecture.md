@@ -5,8 +5,8 @@ Liftoff is a full-stack workout tracking application with a React frontend and G
 
 ## Tech Stack
 - **Frontend**: React 19 + TypeScript + Vite
-- **Backend**: Go + Gin (REST) + pgx / SQLite
-- **Database**: PostgreSQL (production; no fallback, API answers 503 while it is down) / SQLite (local development only)
+- **Backend**: Go + Gin (REST) + pgx
+- **Database**: PostgreSQL (the API answers 503 while it is down; `scripts/dev-db.sh` for local development)
 - **Auth**: JWT (access tokens) with Bearer scheme
 - **Package Manager**: pnpm
 
@@ -21,7 +21,7 @@ Liftoff is a full-stack workout tracking application with a React frontend and G
          │ localStorage (auth)                   │
          ▼                                       ▼
 ┌─────────────────┐                    ┌─────────────────┐
-│   AuthContext   │                    │   SQLite/PostgreSQL│
+│   AuthContext   │                    │   PostgreSQL       │
 │   + JWT token   │                    │   (user_id isolation)│
 └─────────────────┘                    └─────────────────┘
 ```

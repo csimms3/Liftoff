@@ -48,7 +48,6 @@ func badRequest(c *gin.Context) {
 // - Exercise tracking with sets, reps, and weights
 // - Workout sessions and progress tracking
 // - Exercise templates for quick workout building
-// - Support for both PostgreSQL and SQLite databases
 
 func main() {
 	if err := godotenv.Load(); err != nil {
@@ -62,16 +61,16 @@ func main() {
 	// unreachable Postgres leaves the server up, answering 503 until it is back.
 	db, err := database.NewDatabase()
 	if err != nil {
-		log.Fatal("Failed to open database:", err)
+		log.Fatalf("Failed to open database: %v", err)
 	}
 	defer db.Close()
 
 	// Initialize repositories for data access
-	workoutRepo := repository.NewWorkoutRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
-	routineRepo := repository.NewRoutineRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite(), workoutRepo)
-	sessionRepo := repository.NewSessionRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
-	userRepo := repository.NewUserRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
-	adminRepo := repository.NewAdminRepository(db.GetPool(), db.GetSQLite(), db.IsSQLite())
+	workoutRepo := repository.NewWorkoutRepository(db.GetPool())
+	routineRepo := repository.NewRoutineRepository(db.GetPool(), workoutRepo)
+	sessionRepo := repository.NewSessionRepository(db.GetPool())
+	userRepo := repository.NewUserRepository(db.GetPool())
+	adminRepo := repository.NewAdminRepository(db.GetPool())
 	authHandler := handlers.NewAuthHandler(userRepo)
 	adminHandler := handlers.NewAdminHandler(userRepo, adminRepo)
 

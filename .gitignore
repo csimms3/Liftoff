@@ -38,3 +38,6 @@ logs/
 # Temporary files
 tmp/
 temp/
+
+# Project-local Postgres (scripts/dev-db.sh)
+.pgdata/

@@ -125,27 +125,23 @@ func TestMonitor_StopsOnCancel(t *testing.T) {
 	}
 }
 
-// With DATABASE_URL pointing at a dead server the database starts not-ready and
-// never falls back to SQLite.
-func TestNewDatabase_UnreachablePostgresIsNotReadyAndNoSQLite(t *testing.T) {
-	dir := t.TempDir()
-	wd, _ := os.Getwd()
-	if err := os.Chdir(dir); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { os.Chdir(wd) })
+// With DATABASE_URL pointing at a dead server the database starts not-ready.
+func TestNewDatabase_UnreachablePostgresIsNotReady(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://nobody@127.0.0.1:1/none?sslmode=disable&connect_timeout=1")
-
 	db, err := NewDatabase()
 	if err != nil {
 		t.Fatalf("NewDatabase: %v (an unreachable server must not be fatal)", err)
 	}
 	defer db.Close()
-	if db.Ready() || db.IsSQLite() {
-		t.Errorf("ready=%v sqlite=%v, want not ready and not SQLite", db.Ready(), db.IsSQLite())
+	if db.Ready() {
+		t.Error("want not ready")
 	}
-	if _, err := os.Stat("liftoff.db"); !os.IsNotExist(err) {
-		t.Error("fell back to SQLite: liftoff.db was created")
+}
+
+func TestNewDatabase_NoURLIsAnError(t *testing.T) {
+	t.Setenv("DATABASE_URL", "")
+	if _, err := NewDatabase(); !errors.Is(err, ErrNoDatabaseURL) {
+		t.Errorf("err = %v, want ErrNoDatabaseURL", err)
 	}
 }
 
@@ -157,10 +153,7 @@ func TestNewDatabase_InvalidURLIsAnError(t *testing.T) {
 }
 
 func TestOpenPostgres_ReachableIsReady(t *testing.T) {
-	url := os.Getenv("LIFTOFF_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("LIFTOFF_TEST_DATABASE_URL not set")
-	}
+	url := testURL(t)
 	// A private schema keeps the migrations off the shared public schema.
 	schema := fmt.Sprintf("t_ready_%d", time.Now().UnixNano())
 	admin, err := pgx.Connect(context.Background(), url)
@@ -190,10 +183,7 @@ func TestOpenPostgres_ReachableIsReady(t *testing.T) {
 
 // A reachable database whose migrations fail must stop startup, not look "down".
 func TestOpenPostgres_BrokenMigrationIsAnError(t *testing.T) {
-	url := os.Getenv("LIFTOFF_TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("LIFTOFF_TEST_DATABASE_URL not set")
-	}
+	url := testURL(t)
 	schema := fmt.Sprintf("t_badmig_%d", time.Now().UnixNano())
 	admin, err := pgx.Connect(context.Background(), url)
 	if err != nil {
@@ -216,4 +206,13 @@ func TestOpenPostgres_BrokenMigrationIsAnError(t *testing.T) {
 		db.Close()
 		t.Fatal("want an error when migrations fail against a reachable database")
 	}
+}
+
+func testURL(t *testing.T) string {
+	t.Helper()
+	url := os.Getenv("LIFTOFF_TEST_DATABASE_URL")
+	if url == "" {
+		t.Fatal("LIFTOFF_TEST_DATABASE_URL is not set (run `make test`)")
+	}
+	return url
 }

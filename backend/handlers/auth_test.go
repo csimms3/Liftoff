@@ -16,8 +16,7 @@ import (
 func setupAuthTest(t *testing.T) (*AuthHandler, *gin.Engine) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	userRepo := repository.NewUserRepository(nil, nil, true) // useSQLite true but nil - we'll need a proper test DB
-	// For now we test validation logic without DB
+	userRepo := repository.NewUserRepository(nil) // validation tests never reach the database
 	handler := NewAuthHandler(userRepo)
 	return handler, r
 }

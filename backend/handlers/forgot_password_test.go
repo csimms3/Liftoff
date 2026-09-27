@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,12 +16,12 @@ import (
 
 func TestForgotPassword_LockedAccountGetsNoToken(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	db := testdb.SQLite(t).GetSQLite()
-	if _, err := db.Exec(`INSERT INTO users (id, email, password_hash) VALUES ('locked', 'old@example.com', ?), ('open', 'me@example.com', 'x')`,
+	db := testdb.Postgres(t)
+	if _, err := db.Exec(context.Background(), `INSERT INTO users (id, email, password_hash) VALUES ('locked', 'old@example.com', $1), ('open', 'me@example.com', 'x')`,
 		auth.LockedPasswordHash); err != nil {
 		t.Fatal(err)
 	}
-	h := NewAuthHandler(repository.NewUserRepository(nil, db, true))
+	h := NewAuthHandler(repository.NewUserRepository(db))
 	r := gin.New()
 	r.POST("/forgot", h.ForgotPassword)
 
@@ -32,8 +33,8 @@ func TestForgotPassword_LockedAccountGetsNoToken(t *testing.T) {
 		}
 	}
 	var lockedTokens, openTokens int
-	db.QueryRow("SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = 'locked'").Scan(&lockedTokens)
-	db.QueryRow("SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = 'open'").Scan(&openTokens)
+	db.QueryRow(context.Background(), "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = 'locked'").Scan(&lockedTokens)
+	db.QueryRow(context.Background(), "SELECT COUNT(*) FROM password_reset_tokens WHERE user_id = 'open'").Scan(&openTokens)
 	if lockedTokens != 0 {
 		t.Errorf("locked account got %d reset tokens, want 0", lockedTokens)
 	}

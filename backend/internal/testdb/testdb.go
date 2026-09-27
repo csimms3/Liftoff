@@ -1,15 +1,15 @@
-// Package testdb provides isolated databases for tests.
+// Package testdb provides isolated Postgres databases for tests.
 //
-// SQLite tests always run. Postgres tests run only when LIFTOFF_TEST_DATABASE_URL
-// points at a server the tests may create schemas in; each test gets its own
-// schema, dropped on cleanup.
+// Tests need LIFTOFF_TEST_DATABASE_URL pointing at a server they may create
+// schemas in (scripts/dev-db.sh url test; `make test` sets it). Each test gets its
+// own schema, dropped on cleanup. Without the variable the tests fail rather than
+// skip, so nothing passes by accident.
 package testdb
 
 import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,25 +20,20 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// SQLite returns a migrated SQLite database in a temp directory.
-func SQLite(t *testing.T) *database.Database {
-	t.Helper()
-	db, err := database.OpenSQLite(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(db.Close)
-	return db
-}
-
-// PostgresEmpty returns a pool whose search_path is a fresh, empty schema.
-// It skips the test when LIFTOFF_TEST_DATABASE_URL is unset.
-func PostgresEmpty(t *testing.T) *pgxpool.Pool {
+// URL returns the test server's URL, failing the test when it isn't configured.
+func URL(t *testing.T) string {
 	t.Helper()
 	url := os.Getenv("LIFTOFF_TEST_DATABASE_URL")
 	if url == "" {
-		t.Skip("LIFTOFF_TEST_DATABASE_URL not set")
+		t.Fatal("LIFTOFF_TEST_DATABASE_URL is not set: run `make test`, or `scripts/dev-db.sh start` and export LIFTOFF_TEST_DATABASE_URL=$(scripts/dev-db.sh url test)")
 	}
+	return url
+}
+
+// PostgresEmpty returns a pool whose search_path is a fresh, empty schema.
+func PostgresEmpty(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	url := URL(t)
 	ctx := context.Background()
 
 	schema := fmt.Sprintf("t_%d", time.Now().UnixNano())
@@ -76,7 +71,7 @@ func PostgresEmpty(t *testing.T) *pgxpool.Pool {
 func Postgres(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := PostgresEmpty(t)
-	if err := database.MigratePostgres(context.Background(), pool); err != nil {
+	if err := database.Migrate(context.Background(), pool); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
 	return pool
