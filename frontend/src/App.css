@@ -51,7 +51,7 @@
 }
 
 html, body {
-  overflow-x: hidden;
+  overflow-x: clip; /* not hidden: that makes body a scroll container and breaks position: sticky */
   width: 100%;
   min-height: 100vh;
 }
@@ -75,7 +75,8 @@ body {
   width: 100%;
   background: var(--bg-primary);
   color: var(--text-primary);
-  overflow-x: hidden;
+  /* clip, not hidden: hidden makes .app a scroll container and breaks position: sticky */
+  overflow-x: clip;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
@@ -966,12 +967,49 @@ input::placeholder, textarea::placeholder {
 }
 
 .session-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
-  padding-bottom: 1rem;
+  gap: 1rem;
+  margin: -2rem -2rem 1.5rem;
+  padding: 1rem 2rem;
+  background: var(--bg-secondary);
   border-bottom: 2px solid var(--border-color);
+  border-radius: 16px 16px 0 0;
+}
+
+.session-header-main {
+  min-width: 0;
+}
+
+.session-stats {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0.4rem 0 0;
+}
+
+.session-stats div {
+  display: flex;
+  flex-direction: column;
+}
+
+.session-stats dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.session-stats dd {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--text-primary);
 }
 
 .session-header h2 {
@@ -979,6 +1017,17 @@ input::placeholder, textarea::placeholder {
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+  /* A very long workout name takes two lines, not a third of a phone screen. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.session-header .btn-primary,
+.session-header .btn-danger {
+  white-space: nowrap;
 }
 
 .session-info {
@@ -1166,6 +1215,20 @@ input::placeholder, textarea::placeholder {
   .session-view {
     padding: 1rem 0.75rem;
     border-radius: 12px;
+  }
+
+  .session-header {
+    margin: -1rem -0.75rem 1rem;
+    padding: 0.75rem;
+    border-radius: 12px 12px 0 0;
+  }
+
+  .session-stats {
+    gap: 0.9rem;
+  }
+
+  .session-stats dd {
+    font-size: 0.95rem;
   }
 
   .session-header h2 {
@@ -2150,7 +2213,7 @@ input::placeholder, textarea::placeholder {
     padding: 1rem;
     max-width: 100%;
     width: 100%;
-    overflow-x: hidden;
+    overflow-x: clip; /* not hidden: keeps the session header sticky */
   }
   
   .workouts-view {
@@ -2186,10 +2249,7 @@ input::placeholder, textarea::placeholder {
   }
   
   .session-header {
-    flex-direction: column;
-    gap: 1rem;
-    align-items: flex-start;
-    width: 100%;
+    gap: 0.75rem;
   }
   
   .progress-cards {
@@ -2589,5 +2649,15 @@ input:disabled {
   .app-footer {
     padding: 2rem 0 1rem 0;
     margin-top: 2rem;
+  }
+}
+
+/* Browsers without overflow: clip (iOS before 16) would let wide content scroll
+   the page sideways; hidden stops that, but it breaks the sticky session header,
+   so it's used everywhere except the session view. */
+@supports not (overflow: clip) {
+  .app:not(:has(.session-view)),
+  .app:not(:has(.session-view)) .app-main {
+    overflow-x: hidden;
   }
 }

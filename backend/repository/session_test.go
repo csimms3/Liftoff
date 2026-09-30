@@ -378,3 +378,42 @@ func TestPatchExerciseSet_DeletedSetIsNotFound(t *testing.T) {
 		}
 	})
 }
+
+// Session times sent to the browser are real instants, whatever zone the server
+// runs in (the stored wall clock is the server's local time).
+func TestSessionTimesAreInstantsInAnyServerZone(t *testing.T) {
+	for _, zone := range []string{"America/Vancouver", "Asia/Kolkata", "UTC"} {
+		loc, err := time.LoadLocation(zone)
+		if err != nil {
+			t.Skip("no tzdata")
+		}
+		t.Run(zone, func(t *testing.T) {
+			old := time.Local
+			time.Local = loc
+			defer func() { time.Local = old }()
+			withDB(t, func(t *testing.T, e *env) {
+				ctx := context.Background()
+				me := e.user(t, "me@example.com")
+				w := e.workout(t, me, "Push", 1)
+				s, err := e.sessions.StartSession(ctx, me, w.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if d := time.Since(s.StartedAt); d < -2*time.Second || d > time.Minute {
+					t.Errorf("started %v ago, want just now (zone offset leaked)", d)
+				}
+				ended, err := e.sessions.EndSession(ctx, me, s.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if d := time.Since(*ended.EndedAt); d < -2*time.Second || d > time.Minute {
+					t.Errorf("ended %v ago, want just now", d)
+				}
+				done, _ := e.sessions.GetCompletedSessions(ctx, me)
+				if len(done) != 1 || time.Since(*done[0].EndedAt) > time.Minute {
+					t.Errorf("history ended_at off: %v", done)
+				}
+			})
+		})
+	}
+}
