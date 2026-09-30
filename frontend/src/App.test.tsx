@@ -67,13 +67,13 @@ describe('App', () => {
     })
   })
 
-  test('shows create workout form', async () => {
+  test('Add workout opens the new-workout form', async () => {
     renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: '+ Add workout' }))
+    expect(screen.getByPlaceholderText('Workout name...')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
     await waitFor(() => {
-      expect(screen.getByPlaceholderText('Workout name...')).toBeInTheDocument()
-    })
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /create/i })).toBeInTheDocument()
+      expect(screen.queryByPlaceholderText('Workout name...')).toBeNull()
     })
   })
 
@@ -402,7 +402,7 @@ describe('App — error popup', () => {
       ? Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
       : Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }))
     renderWithAuth(<App />)
-    await screen.findByRole('button', { name: 'Create' })
+    await screen.findByRole('button', { name: '+ Add workout' })
     fireEvent.click(screen.getAllByRole('button', { name: 'Progress' })[0])
     expect(await screen.findByText('Failed to load progress data')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).toBeNull()
@@ -625,7 +625,7 @@ describe('App — current routine on the Workouts tab', () => {
     renderWithAuth(<App />)
     expect(await screen.findByRole('heading', { name: 'Split' })).toBeInTheDocument()
     expect(screen.queryByText('Your Workouts')).toBeNull()
-    expect(screen.getByText('Workouts in this routine')).toBeInTheDocument()
+    expect(screen.queryByText('Workouts in this routine')).toBeNull()
     expect(screen.getByText('Push')).toBeInTheDocument()
     expect(screen.getByText('Pull')).toBeInTheDocument()
     expect(screen.queryByText('Solo')).toBeNull()
@@ -650,14 +650,16 @@ describe('App — current routine on the Workouts tab', () => {
     expect(screen.queryByText('Current Workout: Push')).toBeNull()
   })
 
-  test('Create New Workout sends the current routine id', async () => {
+  test('Add workout sends the current routine id', async () => {
     renderWithAuth(<App />)
     await screen.findByText('Push')
     fireEvent.change(screen.getByLabelText('Switch routine'), { target: { value: 'r2' } })
     await screen.findByText('Solo')
+    fireEvent.click(screen.getByRole('button', { name: '+ Add workout' }))
     fireEvent.change(screen.getByPlaceholderText('Workout name...'), { target: { value: 'Legs' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
     await screen.findByText('Legs')
+    expect(screen.queryByPlaceholderText('Workout name...')).toBeNull() // the form closes
     expect(created).toEqual([{ name: 'Legs', routine_id: 'r2' }])
   })
 
