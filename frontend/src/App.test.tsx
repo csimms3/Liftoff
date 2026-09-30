@@ -355,3 +355,36 @@ describe('App — rest timer', () => {
   })
 })
 
+
+describe('App — error popup', () => {
+  beforeEach(() => {
+    mockFetch.mockImplementation(() => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }))
+  })
+
+  test('an error shows as an alert popup and can be dismissed', async () => {
+    renderWithAuth(<App />)
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Failed to load workouts')
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss error' }))
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
+  test('the error clears when you switch tabs', async () => {
+    renderWithAuth(<App />)
+    await screen.findByRole('alert')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Routines' })[0])
+    await waitFor(() => expect(screen.queryByRole('alert')).toBeNull())
+  })
+
+  test('a failed progress load shows inline on the Progress tab, not as a toast', async () => {
+    mockFetch.mockImplementation((url: string) => url.includes('/workouts')
+      ? Promise.resolve({ ok: true, json: () => Promise.resolve([]) })
+      : Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) }))
+    renderWithAuth(<App />)
+    await screen.findByRole('button', { name: 'Create' })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Progress' })[0])
+    expect(await screen.findByText('Failed to load progress data')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.queryByText(/No progress data yet/)).toBeNull()
+  })
+})

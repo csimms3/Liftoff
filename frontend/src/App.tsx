@@ -28,6 +28,7 @@ export default function App() {
   const [completedSessions, setCompletedSessions] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [progressError, setProgressError] = useState<string | null>(null);
   
   const [newWorkoutName, setNewWorkoutName] = useState('')
   const [newExercise, setNewExercise] = useState({
@@ -265,8 +266,10 @@ export default function App() {
     try {
       const data = await apiService.getProgressData();
       setProgressData(data);
+      setProgressError(null);
     } catch {
       console.error('Failed to load progress data');
+      setProgressError('Failed to load progress data');
     }
   }, [apiService]);
 
@@ -296,6 +299,16 @@ export default function App() {
       setRoutineTemplates([]);
     }
   }, [apiService]);
+
+  // An error belongs to the tab it happened on, and a toast shouldn't linger.
+  useEffect(() => { setError(null) }, [view])
+  // Retry a failed progress load when the tab is opened; its inline error stays until one succeeds.
+  useEffect(() => { if (view === 'progress') loadProgressData() }, [view, loadProgressData])
+  useEffect(() => {
+    if (!error) return
+    const t = setTimeout(() => setError(null), 6000)
+    return () => clearTimeout(t)
+  }, [error])
 
   useEffect(() => {
     const loadData = async () => {
@@ -737,9 +750,9 @@ export default function App() {
 
       <main className="app-main">
         {error && (
-          <div className="error-banner">
+          <div className={`error-toast${restTimer.remaining !== null ? ' above-rest-bar' : ''}`} role="alert">
             <p>{error}</p>
-            <button onClick={() => setError(null)}>×</button>
+            <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
           </div>
         )}
 
@@ -1108,8 +1121,8 @@ export default function App() {
               <h3>Exercise Progress</h3>
               {loading ? (
                 <p>Loading progress data...</p>
-              ) : error ? (
-                <p className="error-message">{error}</p>
+              ) : progressError ? (
+                <p className="error-message">{progressError}</p>
               ) : !progressData || progressData.length === 0 ? (
                 <p className="empty-state">No progress data yet. Complete some workouts to see your progress!</p>
               ) : (
