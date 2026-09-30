@@ -6,8 +6,29 @@ import { formatRest } from './formatRest'
 
 // Mock fetch for API calls
 const mockFetch = vi.fn()
+
+// The routines endpoints are served from this state unless a test changes it; everything else goes to mockFetch.
+const routineOf = (id: string, name: string, workoutIds: string[] = []) => ({
+  id, name, description: '', created_at: '', updated_at: '',
+  workouts: workoutIds.map((w, i) => ({ id: w, routine_id: id, workout_id: w, slot_order: i + 1 })),
+})
+let routineState: { current: string | null; routines: ReturnType<typeof routineOf>[]; puts: string[] }
+function routineFetch(url: string, init?: RequestInit) {
+  const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+  const method = init?.method ?? 'GET'
+  if (url.endsWith('/routines/current')) {
+    if (method === 'PUT') {
+      routineState.current = JSON.parse(String(init?.body)).routine_id
+      routineState.puts.push(routineState.current!)
+    }
+    return json({ routine_id: routineState.current })
+  }
+  if (url.endsWith('/routines') && method === 'GET') return json(routineState.routines)
+  return mockFetch(url, init)
+}
 beforeEach(() => {
-  vi.stubGlobal('fetch', mockFetch)
+  routineState = { current: 'r1', routines: [routineOf('r1', 'Split', ['w1'])], puts: [] }
+  vi.stubGlobal('fetch', routineFetch)
   localStorage.clear()
   // Pre-populate auth so user is logged in
   localStorage.setItem('liftoff-auth', JSON.stringify({
@@ -65,7 +86,7 @@ describe('App', () => {
 })
 
 describe('App — workout in progress', () => {
-  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
   const active = { id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true, exercises: [] }
 
   beforeEach(() => {
@@ -92,7 +113,7 @@ describe('App — workout in progress', () => {
 // or switching views and back shows (and re-saves) stale values.
 describe('App — set edits survive switching views', () => {
   test('edited and ticked set is still edited and ticked after Workouts -> Active Session', async () => {
-    const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+    const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
     const server = { id: 'a', weight: 100, reps: 8, completed: false }
     const session = () => ({
       id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true,
@@ -125,7 +146,7 @@ describe('App — set edits survive switching views', () => {
   })
 
   test('a save still in flight when leaving the session view is kept', async () => {
-    const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+    const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
     const server = { id: 'a', weight: 100, reps: 8, completed: false }
     const session = () => ({
       id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true,
@@ -160,7 +181,7 @@ describe('App — set edits survive switching views', () => {
 })
 
 describe('App — editing exercises mid-session', () => {
-  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
   const sets = (id: string, completed = false) => [{ id: `${id}-1`, weight: 100, reps: 8, completed }]
   const mk = (id: string, name: string, completed = false) => ({
     id, exercise_id: '', movement_id: `m-${id}`, name, exercise: { id: '', name }, sets: sets(id, completed), previous: [],
@@ -233,7 +254,7 @@ describe('App — editing exercises mid-session', () => {
 
 describe('App — finishing a workout', () => {
   test('Finish opens the summary and finishing ends the session', async () => {
-    const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+    const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
     let active = true
     const calls: string[] = []
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
@@ -256,7 +277,7 @@ describe('App — finishing a workout', () => {
 })
 
 describe('App — Finish failures', () => {
-  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
   const setup = (finishStatus: number) => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
@@ -290,7 +311,7 @@ describe('App — Finish failures', () => {
 })
 
 describe('App — rest timer', () => {
-  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const workout = { id: 'w1', routine_id: 'r1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
   const mkEx = (id: string, name: string, rest: number) => ({
     id, exercise_id: '', movement_id: `m-${id}`, name, rest_seconds: rest, exercise: { id: '', name },
     sets: [{ id: `${id}-1`, weight: 100, reps: 8, completed: false }], previous: [],
@@ -400,7 +421,7 @@ describe('App — workout editor', () => {
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
       const method = init?.method ?? 'GET'
-      const w = { id: 'w1', name: 'Push', exercises, created_at: '', updated_at: '' }
+      const w = { id: 'w1', routine_id: 'r1', name: 'Push', exercises, created_at: '', updated_at: '' }
       if (url.includes('/sessions/active')) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
       if (url.endsWith('/workouts')) return json([w])
       if (url.endsWith('/workouts/w1/exercises')) return json(exercises)
@@ -519,6 +540,7 @@ describe('App — deleting a routine', () => {
   beforeEach(() => {
     deleted = []
     workoutsOnServer = [wk('w1', 'Push', 'r1'), wk('w2', 'Pull', 'r1'), wk('w3', 'Solo', 'r2')]
+    routineState.routines = [routineOf('r1', 'Split', ['w1', 'w2']), routineOf('r2', 'Other', ['w3'])]
     mockFetch.mockImplementation((url: string, init?: RequestInit) => {
       const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
       const method = init?.method ?? 'GET'
@@ -526,18 +548,8 @@ describe('App — deleting a routine', () => {
       if (del && method === 'DELETE') {
         deleted.push(del[1])
         workoutsOnServer = workoutsOnServer.filter(w => w.routine_id !== del[1])
+        routineState.current = 'r2' // the server falls back to another routine
         return json({ message: 'ok' })
-      }
-      if (url.endsWith('/routines')) {
-        return json([
-          { id: 'r1', name: 'Split', description: '', created_at: '', updated_at: '',
-            workouts: [
-              { id: 'w1', routine_id: 'r1', workout_id: 'w1', slot_order: 1 },
-              { id: 'w2', routine_id: 'r1', workout_id: 'w2', slot_order: 2 },
-            ] },
-          { id: 'r2', name: 'Other', description: '', created_at: '', updated_at: '',
-            workouts: [{ id: 'w3', routine_id: 'r2', workout_id: 'w3', slot_order: 1 }] },
-        ])
       }
       if (url.endsWith('/workouts')) return json(workoutsOnServer)
       if (url.match(/\/workouts\/\w+\/exercises$/)) return json([])
@@ -550,7 +562,7 @@ describe('App — deleting a routine', () => {
     const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderWithAuth(<App />)
     await screen.findByText('Push')
-    expect(screen.getByText('Solo')).toBeInTheDocument()
+    expect(screen.queryByText('Solo')).toBeNull() // another routine's workout
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Routines' })[0])
     const buttons = await screen.findAllByRole('button', { name: '×' })
@@ -564,7 +576,8 @@ describe('App — deleting a routine', () => {
     await waitFor(() => expect(deleted).toEqual(['r1']))
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Workouts' })[0])
-    await screen.findByText('Solo')
+    await screen.findByText('Solo') // r2 is current now
+    expect(screen.getByRole('heading', { name: 'Other' })).toBeInTheDocument()
     await waitFor(() => expect(screen.queryByText('Push')).toBeNull())
     expect(screen.queryByText('Pull')).toBeNull()
     confirm.mockRestore()
@@ -579,5 +592,104 @@ describe('App — deleting a routine', () => {
     expect(confirm).toHaveBeenCalledOnce()
     expect(deleted).toEqual([])
     confirm.mockRestore()
+  })
+})
+
+describe('App — current routine on the Workouts tab', () => {
+  const wk = (id: string, name: string, routine_id: string) => ({ id, routine_id, name, exercises: [], created_at: '', updated_at: '' })
+  let workoutsOnServer: ReturnType<typeof wk>[]
+  let created: unknown[]
+
+  beforeEach(() => {
+    created = []
+    workoutsOnServer = [wk('w1', 'Push', 'r1'), wk('w2', 'Pull', 'r1'), wk('w3', 'Solo', 'r2')]
+    routineState.routines = [routineOf('r1', 'Split', ['w1', 'w2']), routineOf('r2', 'Other', ['w3'])]
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      if (url.endsWith('/workouts') && method === 'POST') {
+        const body = JSON.parse(String(init?.body))
+        created.push(body)
+        workoutsOnServer.push(wk('w9', body.name, body.routine_id))
+        return json(workoutsOnServer[workoutsOnServer.length - 1], 201)
+      }
+      if (url.endsWith('/workouts')) return json(workoutsOnServer)
+      if (url.endsWith('/sessions/active')) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+      return json([])
+    })
+  })
+
+  const goTo = (name: string) => fireEvent.click(screen.getAllByRole('button', { name })[0])
+
+  test('the heading is the current routine, and only its workouts are listed', async () => {
+    renderWithAuth(<App />)
+    expect(await screen.findByRole('heading', { name: 'Split' })).toBeInTheDocument()
+    expect(screen.queryByText('Your Workouts')).toBeNull()
+    expect(screen.getByText('Workouts in this routine')).toBeInTheDocument()
+    expect(screen.getByText('Push')).toBeInTheDocument()
+    expect(screen.getByText('Pull')).toBeInTheDocument()
+    expect(screen.queryByText('Solo')).toBeNull()
+  })
+
+  test('switching routines saves it and changes the list', async () => {
+    renderWithAuth(<App />)
+    await screen.findByText('Push')
+    fireEvent.change(screen.getByLabelText('Switch routine'), { target: { value: 'r2' } })
+    expect(await screen.findByText('Solo')).toBeInTheDocument()
+    expect(routineState.puts).toEqual(['r2'])
+    expect(screen.getByRole('heading', { name: 'Other' })).toBeInTheDocument()
+    expect(screen.queryByText('Push')).toBeNull()
+  })
+
+  test('switching clears a selected workout from the old routine', async () => {
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Push' }))
+    await screen.findByText('Current Workout: Push')
+    fireEvent.change(screen.getByLabelText('Switch routine'), { target: { value: 'r2' } })
+    await screen.findByText('Solo')
+    expect(screen.queryByText('Current Workout: Push')).toBeNull()
+  })
+
+  test('Create New Workout sends the current routine id', async () => {
+    renderWithAuth(<App />)
+    await screen.findByText('Push')
+    fireEvent.change(screen.getByLabelText('Switch routine'), { target: { value: 'r2' } })
+    await screen.findByText('Solo')
+    fireEvent.change(screen.getByPlaceholderText('Workout name...'), { target: { value: 'Legs' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    await screen.findByText('Legs')
+    expect(created).toEqual([{ name: 'Legs', routine_id: 'r2' }])
+  })
+
+  test('with no routines, says to create a workout or pick a template', async () => {
+    routineState.routines = []
+    routineState.current = null
+    workoutsOnServer = []
+    renderWithAuth(<App />)
+    expect(await screen.findByText(/No routine yet/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Switch routine')).toBeNull()
+  })
+
+  test('a current routine with no workouts says so', async () => {
+    routineState.routines = [routineOf('r1', 'Split'), routineOf('r2', 'Other', ['w3'])]
+    workoutsOnServer = [wk('w3', 'Solo', 'r2')]
+    renderWithAuth(<App />)
+    expect(await screen.findByText(/No workouts in this routine yet/)).toBeInTheDocument()
+  })
+
+  test('the Routines tab badges the current routine and can switch to another', async () => {
+    renderWithAuth(<App />)
+    await screen.findByText('Push')
+    goTo('Routines')
+    expect(await screen.findByText('Current')).toBeInTheDocument()
+    const use = screen.getAllByRole('button', { name: 'Use this routine' })
+    expect(use).toHaveLength(1) // not offered on the current one
+    fireEvent.click(use[0])
+    await waitFor(() => expect(routineState.puts).toEqual(['r2']))
+    await waitFor(() => expect(screen.getByRole('heading', { name: /Other/ })).toHaveTextContent('Current'))
+    expect(screen.getByRole('heading', { name: /Split/ })).not.toHaveTextContent('Current')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Workouts' })[0])
+    expect(await screen.findByRole('heading', { name: 'Other' })).toBeInTheDocument()
+    expect(screen.getByText('Solo')).toBeInTheDocument()
   })
 })
