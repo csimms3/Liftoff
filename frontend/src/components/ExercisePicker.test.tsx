@@ -25,9 +25,9 @@ describe('ExercisePicker', () => {
     const onPick = vi.fn()
     render(<ExercisePicker api={api()} title="Add exercise" onPick={onPick} onClose={vi.fn()} />)
     fireEvent.click(await screen.findByText('Squat'))
-    expect(onPick).toHaveBeenCalledWith({ movement_id: 'm2' })
+    expect(onPick).toHaveBeenCalledWith({ movement_id: 'm2' }, expect.any(String))
     fireEvent.click(screen.getByText('Plank'))
-    expect(onPick).toHaveBeenCalledWith({ name: 'Plank' })
+    expect(onPick).toHaveBeenCalledWith({ name: 'Plank' }, 'Plank')
   })
 
   it('offers Create for a new name, but not for one that exists (any case)', async () => {
@@ -37,7 +37,7 @@ describe('ExercisePicker', () => {
     const search = screen.getByPlaceholderText(/search or type/i)
     fireEvent.change(search, { target: { value: ' Face Pull ' } })
     fireEvent.click(screen.getByText('Create “Face Pull”'))
-    expect(onPick).toHaveBeenCalledWith({ name: 'Face Pull' })
+    expect(onPick).toHaveBeenCalledWith({ name: 'Face Pull' }, 'Face Pull')
     fireEvent.change(search, { target: { value: 'squat' } })
     expect(screen.queryByText(/Create/)).toBeNull()
   })
@@ -62,9 +62,9 @@ describe('ExercisePicker keyboard', () => {
     const search = screen.getByPlaceholderText(/search or type/i)
     fireEvent.change(search, { target: { value: 'squ' } })
     fireEvent.keyDown(search, { key: 'Enter' })
-    expect(onPick).toHaveBeenLastCalledWith({ movement_id: 'm2' }) // only match
+    expect(onPick).toHaveBeenLastCalledWith({ movement_id: 'm2' }, expect.any(String)) // only match
     fireEvent.change(search, { target: { value: 'face pull' } })
     fireEvent.keyDown(search, { key: 'Enter' })
-    expect(onPick).toHaveBeenLastCalledWith({ name: 'face pull' }) // no match: create
+    expect(onPick).toHaveBeenLastCalledWith({ name: 'face pull' }, 'face pull') // no match: create
   })
 })

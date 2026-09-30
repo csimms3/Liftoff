@@ -362,6 +362,30 @@ func main() {
 			c.JSON(http.StatusCreated, exercise)
 		})
 
+		authAPI.PATCH("/exercises/:id", func(c *gin.Context) {
+			var input struct {
+				Sets     *int     `json:"sets"`
+				Reps     *int     `json:"reps"`
+				Weight   *float64 `json:"weight"`
+				Position *int     `json:"position"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil ||
+				(input.Sets == nil && input.Reps == nil && input.Weight == nil && input.Position == nil) ||
+				(input.Sets != nil && *input.Sets < 1) || (input.Reps != nil && *input.Reps < 1) ||
+				(input.Weight != nil && *input.Weight < 0) {
+				badRequest(c)
+				return
+			}
+			exercise, err := workoutRepo.UpdateExercise(c.Request.Context(), userID(c), c.Param("id"), repository.ExercisePatch{
+				Sets: input.Sets, Reps: input.Reps, Weight: input.Weight, Position: input.Position,
+			})
+			if err != nil {
+				notFoundOr(c, err, "Exercise not found", "Failed to update exercise")
+				return
+			}
+			c.JSON(http.StatusOK, exercise)
+		})
+
 		authAPI.DELETE("/exercises/:id", func(c *gin.Context) {
 			err := workoutRepo.DeleteExercise(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {

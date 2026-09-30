@@ -388,3 +388,125 @@ describe('App — error popup', () => {
     expect(screen.queryByText(/No progress data yet/)).toBeNull()
   })
 })
+
+describe('App — workout editor', () => {
+  const ex = (id: string, name: string, weight = 100) => ({ id, name, sets: 3, reps: 10, weight, workout_id: 'w1', created_at: '', updated_at: '' })
+  let exercises: ReturnType<typeof ex>[]
+  const calls: string[] = []
+
+  beforeEach(() => {
+    calls.length = 0
+    exercises = [ex('e1', 'Bench'), ex('e2', 'Row')]
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      const w = { id: 'w1', name: 'Push', exercises, created_at: '', updated_at: '' }
+      if (url.includes('/sessions/active')) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+      if (url.endsWith('/workouts')) return json([w])
+      if (url.endsWith('/workouts/w1/exercises')) return json(exercises)
+      if (url.endsWith('/movements') && method === 'GET') return json([{ id: 'm-1', name: 'Squat', category: 'legs', last_used: null }])
+      if (url.endsWith('/exercise-templates')) return json([{ name: 'Deadlift', category: 'back', default_sets: 5, default_reps: 5, default_weight: 135 }])
+      if (url.endsWith('/exercises') && method === 'POST') {
+        calls.push('create ' + init?.body)
+        return json(ex('e3', JSON.parse(String(init?.body)).name), 201)
+      }
+      const one = url.match(/\/exercises\/(\w+)$/)
+      if (one && method === 'PATCH') {
+        calls.push(`patch ${one[1]} ${init?.body}`)
+        return json({ ...exercises.find(e => e.id === one[1])!, ...JSON.parse(String(init?.body)) })
+      }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+  })
+
+  const open = async () => {
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Push' }))
+    await screen.findByText('Current Workout: Push')
+  }
+
+  const names = () => [...document.querySelectorAll('.exercise-card h4')].map(h => h.textContent)
+
+  test('clicking a workout card opens its plan in the editor, with no session started', async () => {
+    renderWithAuth(<App />)
+    const select = await screen.findByRole('button', { name: 'Push' })
+    expect(screen.queryByText('Current Workout: Push')).toBeNull()
+    expect(select).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(select.closest('.workout-card') as HTMLElement) // anywhere on the card
+    await screen.findByText('Current Workout: Push')
+    expect(screen.getByText('Bench')).toBeInTheDocument()
+    expect(select).toHaveAttribute('aria-pressed', 'true')
+    expect(select.closest('.workout-card')).toHaveClass('selected')
+    expect(calls).toEqual([]) // selecting doesn't hit the server
+  })
+
+  test('shows the plan and has no set logging', async () => {
+    await open()
+    expect(screen.getAllByText('3 × 10 @ 100 lbs')).toHaveLength(2)
+    expect(screen.queryByText(/log set/i)).toBeNull()
+  })
+
+  test('adds an exercise through the popup with library defaults', async () => {
+    await open()
+    expect(screen.queryByText('Quick Add Exercise')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
+    fireEvent.click(await screen.findByText('Deadlift'))
+    expect(await screen.findByRole('heading', { name: 'Deadlift' })).toBeInTheDocument()
+    expect(calls).toEqual(['create {"name":"Deadlift","sets":5,"reps":5,"weight":135,"workout_id":"w1"}'])
+    expect(screen.queryByRole('dialog', { name: 'Add exercise' })).toBeNull()
+  })
+
+  test('creates a custom exercise by typing a name', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
+    fireEvent.change(await screen.findByPlaceholderText('Search or type a new exercise'), { target: { value: 'Face Pull' } })
+    fireEvent.click(screen.getByText('Create “Face Pull”'))
+    await screen.findByRole('heading', { name: 'Face Pull' })
+    expect(calls).toEqual(['create {"name":"Face Pull","sets":3,"reps":10,"weight":0,"workout_id":"w1"}'])
+  })
+
+  test('edits a planned value and sends only what changed', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Bench' }))
+    fireEvent.change(screen.getAllByLabelText('Sets')[0], { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('5 × 10 @ 100 lbs')).toBeInTheDocument()
+    expect(calls).toEqual(['patch e1 {"sets":5}'])
+  })
+
+  test('fractional sets disable Save', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Bench' }))
+    fireEvent.change(screen.getAllByLabelText('Sets')[0], { target: { value: '3.5' } })
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  test('move down reorders and tells the server the position', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Move Bench down' }))
+    await waitFor(() => expect(calls).toEqual(['patch e1 {"position":1}']))
+    await waitFor(() => expect(names()).toEqual(['Row', 'Bench']))
+  })
+
+  test('a move and an edit in flight together both stick', async () => {
+    let release = () => {}
+    const base = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      if (url.endsWith('/exercises/e1') && init?.method === 'PATCH' && String(init.body).includes('position')) {
+        calls.push(`patch e1 ${init.body}`)
+        return new Promise(resolve => { release = () => resolve({ ok: true, status: 200, json: () => Promise.resolve(exercises[0]) }) })
+      }
+      return base(url, init)
+    })
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Move Bench down' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Move Row up' })).toBeDisabled()) // one move at a time
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Row' }))
+    fireEvent.change(screen.getByLabelText('Sets'), { target: { value: '5' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    expect(await screen.findByText('5 × 10 @ 100 lbs')).toBeInTheDocument()
+    release()
+    await waitFor(() => expect(names()).toEqual(['Row', 'Bench']))
+    expect(screen.getByText('5 × 10 @ 100 lbs')).toBeInTheDocument()
+  })
+})

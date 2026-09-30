@@ -8,7 +8,8 @@ export type PickTarget = { movement_id: string } | { name: string }
 interface ExercisePickerProps {
   api: PickerApi
   title: string
-  onPick: (target: PickTarget) => void
+  /** name is the chosen exercise's display name (for callers that need it). */
+  onPick: (target: PickTarget, name: string) => void
   onClose: () => void
 }
 
@@ -79,26 +80,26 @@ export function ExercisePicker({ api, title, onPick, onClose }: ExercisePickerPr
               ...fromLibrary.map((t) => ({ target: { name: t.name } as PickTarget, name: t.name })),
             ]
             const hit = options.find((o) => norm(o.name) === q) ?? (options.length === 1 ? options[0] : undefined)
-            onPick(hit ? hit.target : { name: query.trim() })
+            onPick(hit ? hit.target : { name: query.trim() }, hit ? hit.name : query.trim())
           }}
         />
         <div className="picker-list">
           {failed && <p className="empty-state">Couldn't load exercises. You can still type a name.</p>}
           {q !== '' && !exact && (
-            <button type="button" className="picker-item picker-create" onClick={() => onPick({ name: query.trim() })}>
+            <button type="button" className="picker-item picker-create" onClick={() => onPick({ name: query.trim() }, query.trim())}>
               Create “{query.trim()}”
             </button>
           )}
           {mine.length > 0 && <p className="picker-section">Your exercises</p>}
           {mine.map((m) => (
-            <button key={m.id} type="button" className="picker-item" onClick={() => onPick({ movement_id: m.id })}>
+            <button key={m.id} type="button" className="picker-item" onClick={() => onPick({ movement_id: m.id }, m.name)}>
               <span>{m.name}</span>
               {m.category && <small>{m.category}</small>}
             </button>
           ))}
           {fromLibrary.length > 0 && <p className="picker-section">Library</p>}
           {fromLibrary.map((t) => (
-            <button key={t.name} type="button" className="picker-item" onClick={() => onPick({ name: t.name })}>
+            <button key={t.name} type="button" className="picker-item" onClick={() => onPick({ name: t.name }, t.name)}>
               <span>{t.name}</span>
               <small>{t.category}</small>
             </button>

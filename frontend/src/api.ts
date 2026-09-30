@@ -178,6 +178,10 @@ export class ApiService {
 		})
 	}
 
+  async updateExercise(id: string, patch: { sets?: number; reps?: number; weight?: number; position?: number }): Promise<Exercise> {
+    return this.request<Exercise>(`/exercises/${id}`, { method: 'PATCH', body: JSON.stringify(patch) })
+  }
+
   async getExercisesByWorkout(workoutId: string): Promise<Exercise[]> {
     return this.request<Exercise[]>(`/workouts/${workoutId}/exercises`)
   }
