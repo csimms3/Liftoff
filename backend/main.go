@@ -341,7 +341,7 @@ func main() {
 				Weight    float64 `json:"weight"`
 				WorkoutID string  `json:"workout_id" binding:"required"`
 			}
-			if err := c.ShouldBindJSON(&input); err != nil || repository.NormalizeExerciseName(input.Name) == "" {
+			if err := c.ShouldBindJSON(&input); err != nil || !repository.ValidExerciseName(input.Name) {
 				badRequest(c)
 				return
 			}
@@ -436,6 +436,74 @@ func main() {
 				return
 			}
 			c.JSON(http.StatusCreated, sessionExercise)
+		})
+
+		// Mid-session exercise edits (active session only, this session only).
+		authAPI.GET("/movements", func(c *gin.Context) {
+			movements, err := sessionRepo.ListMovements(c.Request.Context(), userID(c))
+			if err != nil {
+				serverError(c, "Failed to fetch exercises", err)
+				return
+			}
+			c.JSON(http.StatusOK, movements)
+		})
+
+		authAPI.POST("/sessions/:id/movements", func(c *gin.Context) {
+			var input struct {
+				MovementID string `json:"movement_id"`
+				Name       string `json:"name"`
+				Position   *int   `json:"position"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil || (input.MovementID == "" && !repository.ValidExerciseName(input.Name)) {
+				badRequest(c)
+				return
+			}
+			se, err := sessionRepo.AddMovementToSession(c.Request.Context(), userID(c), c.Param("id"), input.MovementID, input.Name, input.Position)
+			if err != nil {
+				notFoundOr(c, err, "Session or exercise not found", "Failed to add exercise")
+				return
+			}
+			c.JSON(http.StatusCreated, se)
+		})
+
+		authAPI.DELETE("/sessions/exercises/:id", func(c *gin.Context) {
+			if err := sessionRepo.RemoveSessionExercise(c.Request.Context(), userID(c), c.Param("id")); err != nil {
+				notFoundOr(c, err, "Exercise not found", "Failed to remove exercise")
+				return
+			}
+			c.Status(http.StatusNoContent)
+		})
+
+		authAPI.PATCH("/sessions/exercises/:id", func(c *gin.Context) {
+			var input struct {
+				Position *int `json:"position" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				badRequest(c)
+				return
+			}
+			if err := sessionRepo.MoveSessionExercise(c.Request.Context(), userID(c), c.Param("id"), *input.Position); err != nil {
+				notFoundOr(c, err, "Exercise not found", "Failed to move exercise")
+				return
+			}
+			c.Status(http.StatusNoContent)
+		})
+
+		authAPI.POST("/sessions/exercises/:id/replace", func(c *gin.Context) {
+			var input struct {
+				MovementID string `json:"movement_id"`
+				Name       string `json:"name"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil || (input.MovementID == "" && !repository.ValidExerciseName(input.Name)) {
+				badRequest(c)
+				return
+			}
+			se, err := sessionRepo.ReplaceSessionExercise(c.Request.Context(), userID(c), c.Param("id"), input.MovementID, input.Name)
+			if err != nil {
+				notFoundOr(c, err, "Exercise not found", "Failed to replace exercise")
+				return
+			}
+			c.JSON(http.StatusOK, se)
 		})
 
 		// Exercise set routes

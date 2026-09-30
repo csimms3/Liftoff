@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetTable } from './components/SetTable'
+import { ExercisePicker, type PickTarget } from './components/ExercisePicker'
+import { ExerciseMenu } from './components/ExerciseMenu'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
 import { quickLogSet as quickLog } from './quickLog'
 import { useAuth } from './context/useAuth'
-import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet, type Routine, type RoutineTemplate } from './api'
+import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet, type SessionExercise, type Routine, type RoutineTemplate } from './api'
 import './App.css'
 
 export default function App() {
@@ -167,6 +169,73 @@ export default function App() {
       return null
     }
   }, [apiService])
+
+  // Mid-session exercise edits. The server does the work; the session here is
+  // updated from its reply (a reply for a session that has since ended is ignored).
+  const moveQueue = useRef<Promise<void>>(Promise.resolve())
+  const [picker, setPicker] = useState<{ mode: 'add' } | { mode: 'replace'; id: string } | null>(null)
+
+  const editSessionExercises = (sessionId: string, change: (exercises: SessionExercise[]) => SessionExercise[]) =>
+    setActiveSession(s => (s && s.id === sessionId ? { ...s, exercises: change(s.exercises) } : s))
+
+  const addSessionExercise = async (target: PickTarget) => {
+    if (!activeSession) return
+    setPicker(null)
+    try {
+      const added = await apiService.addSessionExercise(activeSession.id, target)
+      editSessionExercises(activeSession.id, xs => [...xs, added])
+      setTimeout(() => document.getElementById(`se-${added.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 50)
+    } catch {
+      setError('Failed to add exercise')
+    }
+  }
+
+  const replaceSessionExercise = async (id: string, target: PickTarget) => {
+    if (!activeSession) return
+    setPicker(null)
+    const current = activeSession.exercises.find(x => x.id === id)
+    const logged = current?.sets.filter(x => x.completed).length ?? 0
+    if (logged > 0 && !window.confirm(`Replace ${current?.exercise?.name ?? current?.name}? Its ${logged} logged ${logged === 1 ? 'set' : 'sets'} will count as the new exercise.`)) return
+    try {
+      const replaced = await apiService.replaceSessionExercise(id, target)
+      editSessionExercises(activeSession.id, xs => xs.map(x => (x.id === id ? replaced : x)))
+    } catch {
+      setError('Failed to replace exercise')
+    }
+  }
+
+  const removeSessionExercise = async (se: SessionExercise) => {
+    if (!activeSession) return
+    const logged = se.sets.filter(x => x.completed).length
+    if (logged > 0 && !window.confirm(`Remove ${se.exercise?.name ?? se.name}? Its ${logged} logged ${logged === 1 ? 'set' : 'sets'} will be deleted.`)) return
+    try {
+      await apiService.removeSessionExercise(se.id)
+      editSessionExercises(activeSession.id, xs => xs.filter(x => x.id !== se.id))
+    } catch {
+      setError('Failed to remove exercise')
+    }
+  }
+
+  const moveSessionExercise = async (se: SessionExercise, delta: number) => {
+    if (!activeSession) return
+    const from = activeSession.exercises.findIndex(x => x.id === se.id)
+    const to = from + delta
+    if (from < 0 || to < 0 || to >= activeSession.exercises.length) return
+    editSessionExercises(activeSession.id, xs => {
+      const next = [...xs]
+      ;[next[from], next[to]] = [next[to], next[from]]
+      return next
+    }) // optimistic
+    // One move at a time, so quick taps reach the server in order.
+    moveQueue.current = moveQueue.current.then(async () => {
+      try {
+        await apiService.moveSessionExercise(se.id, to)
+      } catch {
+        setError('Failed to move exercise')
+        loadActiveSession() // back to what the server has
+      }
+    })
+  }
 
   const loadExerciseTemplates = useCallback(async () => {
     try {
@@ -341,10 +410,10 @@ export default function App() {
     }
   }
 
-  const quickLogSet = async (exerciseId: string, reps: number, weight: number, notes?: string) => {
+  const quickLogSet = async (exerciseId: string, reps: number, weight: number, notes?: string, movementId?: string) => {
     try {
       setLoading(true)
-      await quickLog(apiService, activeSession, currentWorkout!.id, exerciseId, reps, weight, notes)
+      await quickLog(apiService, activeSession, currentWorkout!.id, exerciseId, reps, weight, notes, movementId)
       loadActiveSession()
       loadProgressData() // Refresh progress data
     } catch (error) {
@@ -909,7 +978,7 @@ export default function App() {
                           exerciseName={exercise.name}
                           plannedReps={exercise.reps}
                           plannedWeight={exercise.weight}
-                          onLogSet={(reps, weight, notes) => quickLogSet(exercise.id, reps, weight, notes)}
+                          onLogSet={(reps, weight, notes) => quickLogSet(exercise.id, reps, weight, notes, exercise.movement_id)}
                           loading={loading}
                           weightUnit={weightUnit}
                         />
@@ -942,9 +1011,20 @@ export default function App() {
 
             {activeSession.exercises?.length > 0 ? (
               <div className="session-exercises">
-              {activeSession.exercises.map(sessionExercise => (
-                <section key={sessionExercise.id} className="session-exercise">
-                  <h3>{sessionExercise.exercise?.name}</h3>
+              {activeSession.exercises.map((sessionExercise, index, all) => (
+                <section key={sessionExercise.id} id={`se-${sessionExercise.id}`} className="session-exercise">
+                  <div className="session-exercise-head">
+                    <h3>{sessionExercise.exercise?.name ?? sessionExercise.name}</h3>
+                    <ExerciseMenu
+                      name={sessionExercise.name}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < all.length - 1}
+                      onMoveUp={() => moveSessionExercise(sessionExercise, -1)}
+                      onMoveDown={() => moveSessionExercise(sessionExercise, 1)}
+                      onReplace={() => setPicker({ mode: 'replace', id: sessionExercise.id })}
+                      onRemove={() => removeSessionExercise(sessionExercise)}
+                    />
+                  </div>
                   <SetTable
                     sessionExercise={sessionExercise}
                     api={apiService}
@@ -957,6 +1037,19 @@ export default function App() {
               </div>
             ) : (
               <p className="empty-state">No exercises in this session</p>
+            )}
+
+            <button type="button" className="add-exercise-button" onClick={() => setPicker({ mode: 'add' })}>
+              + Add exercise
+            </button>
+
+            {picker && (
+              <ExercisePicker
+                api={apiService}
+                title={picker.mode === 'add' ? 'Add exercise' : 'Replace exercise'}
+                onClose={() => setPicker(null)}
+                onPick={target => (picker.mode === 'add' ? addSessionExercise(target) : replaceSessionExercise(picker.id, target))}
+              />
             )}
           </div>
         )}

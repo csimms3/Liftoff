@@ -104,30 +104,10 @@ func (r *SessionRepository) GetActiveSessionWithExercises(ctx context.Context, u
 	// the n-th occurrence's sets from last time.
 	occurrence := map[string]int{}
 	for _, se := range sessionExercises {
-		// The workout's exercise (its plan), or just the name if it has since been
-		// removed from the workout.
-		se.Exercise = &models.Exercise{Name: se.Name, MovementID: se.MovementID}
-		if se.ExerciseID != "" {
-			exercise, err := NewWorkoutRepository(r.db).GetExercise(ctx, se.ExerciseID)
-			if err != nil {
-				return nil, fmt.Errorf("failed to get exercise: %w", err)
-			}
-			se.Exercise = exercise
+		if err := r.populateSessionExercise(ctx, userID, session.ID, se, occurrence[se.MovementID]); err != nil {
+			return nil, err
 		}
-
-		// Get sets for this exercise
-		sets, err := r.GetExerciseSets(ctx, se.ID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get exercise sets: %w", err)
-		}
-		se.Sets = sets
-
-		previous, err := r.previousSets(ctx, userID, se.MovementID, session.ID, occurrence[se.MovementID])
 		occurrence[se.MovementID]++
-		if err != nil {
-			return nil, fmt.Errorf("failed to get previous sets: %w", err)
-		}
-		se.Previous = previous
 	}
 
 	// The workout, or just its name if it has since been deleted.
@@ -207,18 +187,27 @@ func (r *SessionRepository) GetActiveSession(ctx context.Context, userID string)
 
 func (r *SessionRepository) EndSession(ctx context.Context, userID, id string) (*models.WorkoutSession, error) {
 	now := time.Now()
-	session, err := scanSession(r.db.QueryRow(ctx, `
-		UPDATE workout_sessions
-		SET ended_at = $2, is_active = false, updated_at = $2
-		WHERE id = $1 AND user_id = $3
-		RETURNING `+sessionColumns, id, now, userID))
-	if errors.Is(err, pgx.ErrNoRows) {
+	var session *models.WorkoutSession
+	// Under the same lock as the exercise edits, so none can slip into a session
+	// that has just ended.
+	err := r.inTx(ctx, userID, func(tx pgx.Tx) error {
+		s, err := scanSession(tx.QueryRow(ctx, `
+			UPDATE workout_sessions
+			SET ended_at = $2, is_active = false, updated_at = $2
+			WHERE id = $1 AND user_id = $3
+			RETURNING `+sessionColumns, id, now, userID))
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
+		session = s
+		return err
+	})
+	if errors.Is(err, ErrNotFound) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to end session: %w", err)
 	}
-
 	return session, nil
 }
 
@@ -552,4 +541,30 @@ func (r *SessionRepository) previousSets(ctx context.Context, userID, movementID
 		sets = append(sets, &set)
 	}
 	return sets, rows.Err()
+}
+
+// populateSessionExercise fills in a session exercise's plan, sets and previous
+// sets. occurrence is its 0-based index among the session's rows for the same movement.
+func (r *SessionRepository) populateSessionExercise(ctx context.Context, userID, sessionID string, se *models.SessionExercise, occurrence int) error {
+	// The workout's exercise (its plan), or just the name if it has since been
+	// removed from the workout or replaced.
+	se.Exercise = &models.Exercise{Name: se.Name, MovementID: se.MovementID}
+	if se.ExerciseID != "" {
+		exercise, err := NewWorkoutRepository(r.db).GetExercise(ctx, se.ExerciseID)
+		if err != nil {
+			return fmt.Errorf("failed to get exercise: %w", err)
+		}
+		se.Exercise = exercise
+	}
+	sets, err := r.GetExerciseSets(ctx, se.ID)
+	if err != nil {
+		return fmt.Errorf("failed to get exercise sets: %w", err)
+	}
+	se.Sets = sets
+	previous, err := r.previousSets(ctx, userID, se.MovementID, sessionID, occurrence)
+	if err != nil {
+		return fmt.Errorf("failed to get previous sets: %w", err)
+	}
+	se.Previous = previous
+	return nil
 }

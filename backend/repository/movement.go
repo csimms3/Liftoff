@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,15 @@ import (
 // rowQuerier is satisfied by both the pool and a pgx transaction.
 type rowQuerier interface {
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// MaxExerciseNameLength is the movement/exercise name column size.
+const MaxExerciseNameLength = 255
+
+// ValidExerciseName reports whether name is non-blank and fits the column.
+func ValidExerciseName(name string) bool {
+	n := NormalizeExerciseName(name)
+	return n != "" && utf8.RuneCountInString(n) <= MaxExerciseNameLength
 }
 
 // NormalizeExerciseName trims surrounding spaces, the same rule as the
