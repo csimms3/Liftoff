@@ -488,6 +488,21 @@ func main() {
 			c.JSON(http.StatusOK, movements)
 		})
 
+		authAPI.PATCH("/movements/:id", func(c *gin.Context) {
+			var input struct {
+				RestSeconds *int `json:"rest_seconds" binding:"required,min=0,max=3600"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				badRequest(c)
+				return
+			}
+			if err := sessionRepo.SetMovementRest(c.Request.Context(), userID(c), c.Param("id"), *input.RestSeconds); err != nil {
+				notFoundOr(c, err, "Exercise not found", "Failed to save rest time")
+				return
+			}
+			c.Status(http.StatusNoContent)
+		})
+
 		authAPI.POST("/sessions/:id/movements", func(c *gin.Context) {
 			var input struct {
 				MovementID string `json:"movement_id"`

@@ -235,3 +235,34 @@ func TestExerciseNameValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRestSeconds_DefaultSetAndOwnership(t *testing.T) {
+	withDB(t, func(t *testing.T, e *env) {
+		ctx := context.Background()
+		me, s := startPush(t, e)
+		other := e.user(t, "other@example.com")
+		mid := s.Exercises[0].MovementID
+		if s.Exercises[0].RestSeconds != 90 {
+			t.Errorf("default rest = %d, want 90", s.Exercises[0].RestSeconds)
+		}
+		if err := e.sessions.SetMovementRest(ctx, me, mid, 150); err != nil {
+			t.Fatal(err)
+		}
+		got, _ := e.sessions.GetActiveSessionWithExercises(ctx, me)
+		if got.Exercises[0].RestSeconds != 150 || got.Exercises[1].RestSeconds != 90 {
+			t.Errorf("rest = %d / %d, want 150 / 90 (per exercise)", got.Exercises[0].RestSeconds, got.Exercises[1].RestSeconds)
+		}
+		if err := e.sessions.SetMovementRest(ctx, me, mid, 0); err != nil {
+			t.Fatal(err) // off
+		}
+		if err := e.sessions.SetMovementRest(ctx, other, mid, 30); !errors.Is(err, repository.ErrNotFound) {
+			t.Errorf("another user's movement: %v, want ErrNotFound", err)
+		}
+		// Remembered for the next session and for a replacement exercise.
+		e.sessions.EndSession(ctx, me, s.ID)
+		s2, _ := e.sessions.StartSession(ctx, me, s.WorkoutID)
+		if s2.Exercises[0].RestSeconds != 0 {
+			t.Errorf("next session rest = %d, want the saved 0 (off)", s2.Exercises[0].RestSeconds)
+		}
+	})
+}

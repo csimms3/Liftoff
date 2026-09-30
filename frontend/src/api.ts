@@ -67,6 +67,8 @@ export interface SessionExercise {
 	exercise_id: string;
 	movement_id: string;
 	name: string;
+	/** Rest timer for this exercise's movement, in seconds; 0 = off. */
+	rest_seconds: number;
 	exercise: Exercise;
 	sets: ExerciseSet[];
 	/** Completed sets from the last session that logged this exercise, in order. */
@@ -302,6 +304,11 @@ export class ApiService {
 			throw new Error(`Failed to create workout from template: ${response.statusText}`);
 		}
 		return response.json();
+	}
+
+	/** Sets the movement's rest timer (0 = off); remembered for every workout. */
+	async setMovementRest(movementId: string, restSeconds: number): Promise<void> {
+		return this.request<void>(`/movements/${movementId}`, { method: 'PATCH', body: JSON.stringify({ rest_seconds: restSeconds }) })
 	}
 
 	async getMovements(): Promise<MovementSummary[]> {

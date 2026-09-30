@@ -561,6 +561,9 @@ func (r *SessionRepository) populateSessionExercise(ctx context.Context, userID,
 		return fmt.Errorf("failed to get exercise sets: %w", err)
 	}
 	se.Sets = sets
+	if err := r.db.QueryRow(ctx, `SELECT rest_seconds FROM movements WHERE id = $1`, se.MovementID).Scan(&se.RestSeconds); err != nil {
+		return fmt.Errorf("failed to get rest time: %w", err)
+	}
 	previous, err := r.previousSets(ctx, userID, se.MovementID, sessionID, occurrence)
 	if err != nil {
 		return fmt.Errorf("failed to get previous sets: %w", err)

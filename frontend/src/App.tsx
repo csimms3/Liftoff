@@ -4,6 +4,11 @@ import { SetTable } from './components/SetTable'
 import { ExercisePicker, type PickTarget } from './components/ExercisePicker'
 import { ExerciseMenu } from './components/ExerciseMenu'
 import { FinishDialog } from './components/FinishDialog'
+
+import { RestTimerBar } from './components/RestTimerBar'
+import { RestSettingDialog } from './components/RestSettingDialog'
+import { formatRest } from './formatRest'
+import { useRestTimer } from './useRestTimer'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
 import { quickLogSet as quickLog } from './quickLog'
@@ -174,6 +179,25 @@ export default function App() {
   // Mid-session exercise edits. The server does the work; the session here is
   // updated from its reply (a reply for a session that has since ended is ignored).
   const moveQueue = useRef<Promise<void>>(Promise.resolve())
+  const restTimer = useRestTimer(activeSession?.id)
+  const [restFor, setRestFor] = useState<string | null>(null) // session exercise id whose rest setting is open
+
+  // Remember an exercise's rest time (every workout that uses it), then reflect it here.
+  const setRestSeconds = async (se: SessionExercise, seconds: number) => {
+    setRestFor(null)
+    if (!activeSession) return
+    const sessionId = activeSession.id
+    const apply = (n: number) =>
+      editSessionExercises(sessionId, xs => xs.map(x => (x.movement_id === se.movement_id ? { ...x, rest_seconds: n } : x)))
+    apply(seconds) // optimistic
+    try {
+      await apiService.setMovementRest(se.movement_id, seconds)
+    } catch {
+      apply(se.rest_seconds)
+      setError('Failed to save rest time')
+    }
+  }
+
   const [picker, setPicker] = useState<{ mode: 'add' } | { mode: 'replace'; id: string } | null>(null)
 
   const editSessionExercises = (sessionId: string, change: (exercises: SessionExercise[]) => SessionExercise[]) =>
@@ -1034,7 +1058,7 @@ export default function App() {
         )}
 
         {view === 'session' && activeSession && (
-          <div className="session-view">
+          <div className={`session-view${restTimer.remaining !== null ? ' has-rest-bar' : ''}`}>
             <div className="session-header">
               <div>
                 <h2>{activeSession.workout?.name}</h2>
@@ -1060,6 +1084,8 @@ export default function App() {
                       onMoveUp={() => moveSessionExercise(sessionExercise, -1)}
                       onMoveDown={() => moveSessionExercise(sessionExercise, 1)}
                       onReplace={() => setPicker({ mode: 'replace', id: sessionExercise.id })}
+                      onRest={() => setRestFor(sessionExercise.id)}
+                      restLabel={`Rest timer: ${formatRest(sessionExercise.rest_seconds).toLowerCase()}…`}
                       onRemove={() => removeSessionExercise(sessionExercise)}
                     />
                   </div>
@@ -1069,6 +1095,7 @@ export default function App() {
                     weightUnit={weightUnit}
                     onError={setError}
                     onSetsUpdate={updateSessionSets}
+                    onSetDone={() => restTimer.start(sessionExercise.rest_seconds, sessionExercise.exercise?.name ?? sessionExercise.name)}
                   />
                 </section>
               ))}
@@ -1093,6 +1120,20 @@ export default function App() {
                 onDiscard={discardSession}
               />
             )}
+
+            {restFor && (() => {
+              const se = activeSession.exercises.find(x => x.id === restFor)
+              return se ? (
+                <RestSettingDialog
+                  name={se.exercise?.name ?? se.name}
+                  seconds={se.rest_seconds}
+                  onPick={n => setRestSeconds(se, n)}
+                  onClose={() => setRestFor(null)}
+                />
+              ) : null
+            })()}
+
+            <RestTimerBar timer={restTimer} />
 
             {picker && (
               <ExercisePicker

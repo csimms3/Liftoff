@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import App from './App'
 import { AuthProvider } from './context/AuthContext'
+import { formatRest } from './formatRest'
 
 // Mock fetch for API calls
 const mockFetch = vi.fn()
@@ -285,6 +286,72 @@ describe('App — Finish failures', () => {
     await openFinish()
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Finish workout' })).toBeNull())
     expect(await screen.findByText('That workout has already ended')).toBeInTheDocument()
+  })
+})
+
+describe('App — rest timer', () => {
+  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const mkEx = (id: string, name: string, rest: number) => ({
+    id, exercise_id: '', movement_id: `m-${id}`, name, rest_seconds: rest, exercise: { id: '', name },
+    sets: [{ id: `${id}-1`, weight: 100, reps: 8, completed: false }], previous: [],
+  })
+  const calls: string[] = []
+
+  beforeEach(() => {
+    localStorage.removeItem('liftoff-rest-timer')
+    calls.length = 0
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      if (url.includes('/sessions/active')) return json({ id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true, exercises: [mkEx('a', 'Bench', 90), mkEx('b', 'Plank', 0)] })
+      if (url.endsWith('/workouts')) return json([workout])
+      if (url.match(/\/exercise-sets\/\w+-1$/) && method === 'PATCH') return json({ id: 'x', weight: 100, reps: 8, completed: true })
+      const mv = url.match(/\/movements\/([\w-]+)$/)
+      if (mv && method === 'PATCH') { calls.push(`rest ${mv[1]} ${init?.body}`); return json(undefined, 204) }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+  })
+
+  const open = async () => {
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue Session' }))
+    await screen.findByRole('button', { name: 'Set 1 done', hidden: false }).catch(() => null)
+  }
+
+  test('ticking a set starts that exercise\'s rest; an exercise with rest off starts nothing', async () => {
+    await open()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Set 1 done' }))[1]) // Plank: off
+    expect(screen.queryByRole('timer')).toBeNull()
+    fireEvent.click(screen.getAllByRole('button', { name: 'Set 1 done' })[0]) // Bench: 90 s
+    const bar = await screen.findByRole('timer')
+    expect(bar).toHaveTextContent('1:30')
+    expect(bar).toHaveTextContent('Bench')
+  })
+
+  test('a set that fails to save does not start the rest timer', async () => {
+    const ok = mockFetch.getMockImplementation()!
+    mockFetch.mockImplementation((url: string, init?: RequestInit) =>
+      url.match(/\/exercise-sets\/\w+-1$/) && init?.method === 'PATCH'
+        ? Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) })
+        : ok(url, init))
+    await open()
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Set 1 done' }))[0])
+    await screen.findByText('Failed to update set')
+    expect(screen.queryByRole('timer')).toBeNull()
+  })
+
+  test('rest times read the same in the menu and the dialog, including unlisted values', () => {
+    expect([0, 45, 90, 120, 75, 150].map(formatRest)).toEqual(['Off', '45 s', '90 s', '2 min', '75 s', '2 min 30 s'])
+  })
+
+  test('the rest setting is saved for the exercise and shown in the menu', async () => {
+    await open()
+    fireEvent.click(await screen.findByRole('button', { name: 'Plank options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /Rest timer: off/ }))
+    fireEvent.click(screen.getByRole('button', { name: '2 min' }))
+    await waitFor(() => expect(calls).toEqual(['rest m-b {"rest_seconds":120}']))
+    fireEvent.click(screen.getByRole('button', { name: 'Plank options' }))
+    expect(screen.getByRole('menuitem', { name: /Rest timer: 2 min/ })).toBeInTheDocument()
   })
 })
 

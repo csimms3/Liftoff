@@ -96,11 +96,13 @@ type SessionExercise struct {
 	SessionID string `json:"session_id" db:"session_id"`
 	// ExerciseID is the workout's exercise it came from; empty once that exercise
 	// has been removed from the workout. Name is kept as performed.
-	ExerciseID string         `json:"exercise_id" db:"exercise_id"`
-	MovementID string         `json:"movement_id" db:"movement_id"`
-	Name       string         `json:"name" db:"name"`
-	Exercise   *Exercise      `json:"exercise" db:"-"`
-	Sets       []*ExerciseSet `json:"sets" db:"-"`
+	ExerciseID string `json:"exercise_id" db:"exercise_id"`
+	MovementID string `json:"movement_id" db:"movement_id"`
+	Name       string `json:"name" db:"name"`
+	// RestSeconds is the movement's rest timer (0 = off), remembered per exercise.
+	RestSeconds int            `json:"rest_seconds" db:"-"`
+	Exercise    *Exercise      `json:"exercise" db:"-"`
+	Sets        []*ExerciseSet `json:"sets" db:"-"`
 	// Previous holds the completed sets for this exercise from the user's last
 	// session that logged it, in order; empty when there is none.
 	Previous  []*ExerciseSet `json:"previous" db:"-"`
