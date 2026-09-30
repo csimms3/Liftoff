@@ -141,7 +141,22 @@ func scanSession(row pgx.Row) (*models.WorkoutSession, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.StartedAt = wallClockToInstant(s.StartedAt)
+	s.CreatedAt = wallClockToInstant(s.CreatedAt)
+	s.UpdatedAt = wallClockToInstant(s.UpdatedAt)
+	if s.EndedAt != nil {
+		e := wallClockToInstant(*s.EndedAt)
+		s.EndedAt = &e
+	}
 	return &s, nil
+}
+
+// wallClockToInstant turns a TIMESTAMP (no zone) value into the moment it means.
+// The server writes time.Now() in its local zone, so the stored wall clock is
+// local time, but pgx reads it back labelled UTC; without this, times sent to the
+// browser are off by the server's UTC offset (a UTC server is unaffected).
+func wallClockToInstant(t time.Time) time.Time {
+	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), time.Local)
 }
 
 // GetCompletedSessions returns all completed workout sessions for the user

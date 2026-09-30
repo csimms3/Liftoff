@@ -4,9 +4,9 @@ import { SetTable } from './components/SetTable'
 import { ExercisePicker, type PickTarget } from './components/ExercisePicker'
 import { ExerciseMenu } from './components/ExerciseMenu'
 import { FinishDialog } from './components/FinishDialog'
-
 import { RestTimerBar } from './components/RestTimerBar'
 import { RestSettingDialog } from './components/RestSettingDialog'
+import { SessionHeader } from './components/SessionHeader'
 import { formatRest } from './formatRest'
 import { useRestTimer } from './useRestTimer'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
@@ -1059,17 +1059,17 @@ export default function App() {
 
         {view === 'session' && activeSession && (
           <div className={`session-view${restTimer.remaining !== null ? ' has-rest-bar' : ''}`}>
-            <div className="session-header">
-              <div>
-                <h2>{activeSession.workout?.name}</h2>
-                <p className="workout-stats">
-                  Started {new Date(activeSession.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
-                </p>
-              </div>
-              <button onClick={() => setFinishing(true)} className="btn-primary">
-                Finish
-              </button>
-            </div>
+            <SessionHeader
+              workoutName={activeSession.workout?.name ?? activeSession.workout_name}
+              startedAt={activeSession.started_at}
+              exercises={activeSession.exercises}
+              weightUnit={weightUnit}
+              action={
+                <button onClick={() => setFinishing(true)} className="btn-primary">
+                  Finish
+                </button>
+              }
+            />
 
             {activeSession.exercises?.length > 0 ? (
               <div className="session-exercises">
