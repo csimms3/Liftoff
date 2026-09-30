@@ -412,6 +412,46 @@ func main() {
 			c.JSON(http.StatusOK, session)
 		})
 
+		// Finish step: summary (with how the session differs from its workout),
+		// finish (optionally updating the workout), and discard (nothing logged).
+		authAPI.GET("/sessions/:id/summary", func(c *gin.Context) {
+			summary, err := sessionRepo.SessionSummary(c.Request.Context(), userID(c), c.Param("id"))
+			if err != nil {
+				notFoundOr(c, err, "Session not found", "Failed to summarize session")
+				return
+			}
+			c.JSON(http.StatusOK, summary)
+		})
+
+		authAPI.POST("/sessions/:id/finish", func(c *gin.Context) {
+			var input struct {
+				UpdateWorkout bool `json:"update_workout"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				badRequest(c)
+				return
+			}
+			session, err := sessionRepo.FinishSession(c.Request.Context(), userID(c), c.Param("id"), input.UpdateWorkout)
+			if err != nil {
+				notFoundOr(c, err, "Session not found", "Failed to finish session")
+				return
+			}
+			c.JSON(http.StatusOK, session)
+		})
+
+		authAPI.DELETE("/sessions/:id", func(c *gin.Context) {
+			err := sessionRepo.DiscardSession(c.Request.Context(), userID(c), c.Param("id"))
+			if errors.Is(err, repository.ErrSessionHasLoggedSets) {
+				c.JSON(http.StatusConflict, gin.H{"error": "This workout has logged sets; finish it instead"})
+				return
+			}
+			if err != nil {
+				notFoundOr(c, err, "Session not found", "Failed to discard session")
+				return
+			}
+			c.Status(http.StatusNoContent)
+		})
+
 		authAPI.PUT("/sessions/:id/end", func(c *gin.Context) {
 			session, err := sessionRepo.EndSession(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
