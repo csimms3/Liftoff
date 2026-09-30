@@ -3,6 +3,7 @@ import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetTable } from './components/SetTable'
 import { ExercisePicker, type PickTarget } from './components/ExercisePicker'
 import { ExerciseMenu } from './components/ExerciseMenu'
+import { QuickAddDialog, type QuickAddDestination } from './components/QuickAddDialog'
 import { FinishDialog } from './components/FinishDialog'
 import { RestTimerBar } from './components/RestTimerBar'
 import { RestSettingDialog } from './components/RestSettingDialog'
@@ -27,6 +28,7 @@ export default function App() {
   const [completedSessions, setCompletedSessions] = useState<WorkoutSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null); // a non-error confirmation toast
   const [progressError, setProgressError] = useState<string | null>(null);
   
   const [newWorkoutName, setNewWorkoutName] = useState('')
@@ -267,7 +269,7 @@ export default function App() {
   }, [apiService]);
 
   // An error belongs to the tab it happened on, and a toast shouldn't linger.
-  useEffect(() => { setError(null) }, [view])
+  useEffect(() => { setError(null); setNotice(null) }, [view])
   // Retry a failed progress load when the tab is opened; its inline error stays until one succeeds.
   useEffect(() => { if (view === 'progress') loadProgressData() }, [view, loadProgressData])
   useEffect(() => {
@@ -275,6 +277,11 @@ export default function App() {
     const t = setTimeout(() => setError(null), 6000)
     return () => clearTimeout(t)
   }, [error])
+  useEffect(() => {
+    if (!notice) return
+    const t = setTimeout(() => setNotice(null), 4000)
+    return () => clearTimeout(t)
+  }, [notice])
 
   useEffect(() => {
     const loadData = async () => {
@@ -551,40 +558,43 @@ export default function App() {
     }
   }
 
-  const addExerciseFromLibrary = async (template: ExerciseTemplate) => {
-    if (!currentWorkout) {
-      setError('Please select a workout first');
-      return;
+  // Quick Add from the library: ask where it should go (the running session or a workout).
+  const [quickAdd, setQuickAdd] = useState<{ template: ExerciseTemplate; defaultWorkoutId: string | null } | null>(null)
+  const openQuickAdd = async (template: ExerciseTemplate) => {
+    let defaultWorkoutId = currentWorkout?.id ?? null
+    if (!activeSession && !defaultWorkoutId) {
+      try {
+        const routineId = await apiService.getCurrentRoutineId()
+        defaultWorkoutId = workouts.find(w => w.routine_id === routineId)?.id ?? null
+      } catch {
+        // fall back to the first workout
+      }
     }
-    
-    try {
-      setLoading(true);
+    setQuickAdd({ template, defaultWorkoutId: defaultWorkoutId ?? workouts[0]?.id ?? null })
+  }
+
+  // Throws if the add failed, so the dialog stays open and says so.
+  const addFromLibrary = async (template: ExerciseTemplate, destination: QuickAddDestination) => {
+    let where: string
+    if (destination.kind === 'session') {
+      if (!activeSession) throw new Error('No active session')
+      const added = await apiService.addSessionExercise(activeSession.id, { name: template.name })
+      editSessionExercises(activeSession.id, xs => [...xs, added])
+      where = activeSession.workout?.name ?? activeSession.workout_name
+    } else {
       const exercise = await apiService.createExercise({
         name: template.name,
         sets: template.default_sets,
         reps: template.default_reps,
         weight: template.default_weight,
-        workout_id: currentWorkout.id
-      });
-      
-      // Update the current workout with the new exercise
-      const updatedWorkout = {
-        ...currentWorkout,
-        exercises: [...(currentWorkout.exercises || []), exercise]
-      };
-      
-      // Update both the workouts list and current workout
-      setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w));
-      setCurrentWorkout(updatedWorkout);
-      
-      // Switch to workouts view to show the updated workout
-      setView('workouts');
-    } catch {
-      setError('Failed to add exercise from library');
-    } finally {
-      setLoading(false);
+        workout_id: destination.workoutId
+      })
+      updateWorkoutExercises(destination.workoutId, list => [...list, exercise])
+      where = workouts.find(w => w.id === destination.workoutId)?.name ?? 'your workout'
     }
-  };
+    setQuickAdd(null)
+    setNotice(`Added ${template.name} to ${where}`)
+  }
 
   return (
     <div className="app">
@@ -735,6 +745,13 @@ export default function App() {
           <div className={`error-toast${restTimer.remaining !== null ? ' above-rest-bar' : ''}`} role="alert">
             <p>{error}</p>
             <button onClick={() => setError(null)} aria-label="Dismiss error">×</button>
+          </div>
+        )}
+
+        {notice && !error && (
+          <div className={`error-toast success${restTimer.remaining !== null ? ' above-rest-bar' : ''}`} role="status">
+            <p>{notice}</p>
+            <button onClick={() => setNotice(null)} aria-label="Dismiss message">×</button>
           </div>
         )}
 
@@ -1110,7 +1127,21 @@ export default function App() {
 
         {view === 'library' && (
           <WorkoutLibrary 
-            onExerciseSelected={addExerciseFromLibrary}
+            onExerciseSelected={openQuickAdd}
+          />
+        )}
+
+        {quickAdd && (
+          <QuickAddDialog
+            template={quickAdd.template}
+            weightUnit={weightUnit}
+            displayWeight={convertWeight(quickAdd.template.default_weight, 'lbs', weightUnit)}
+            workouts={workouts}
+            routines={routines}
+            sessionName={activeSession ? (activeSession.workout?.name ?? activeSession.workout_name) : null}
+            defaultWorkoutId={quickAdd.defaultWorkoutId}
+            onAdd={(destination) => addFromLibrary(quickAdd.template, destination)}
+            onClose={() => setQuickAdd(null)}
           />
         )}
       </main>

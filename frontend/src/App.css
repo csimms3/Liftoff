@@ -2517,3 +2517,31 @@ input:disabled {
 .use-routine {
   margin-bottom: 0.75rem;
 }
+
+/* Quick Add popup (Library) */
+.quick-add-defaults {
+  margin: 0;
+  color: var(--text-secondary);
+}
+
+.quick-add-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.quick-add-field select {
+  width: 100%;
+  min-height: 2.75rem;
+  font-size: 1rem; /* 16px keeps iOS from zooming on focus */
+}
+
+/* Non-error message, same spot as the error toast */
+.error-toast.success {
+  border-color: var(--success-color);
+  color: var(--text-primary);
+}
+
+.error-toast.success button {
+  color: var(--text-secondary);
+}
