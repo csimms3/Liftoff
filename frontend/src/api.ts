@@ -44,6 +44,7 @@ export interface Exercise {
 	reps: number;
 	weight: number;
 	workout_id: string;
+	movement_id?: string;
 	created_at: string;
 	updated_at: string;
 }
@@ -78,6 +79,13 @@ export interface ExerciseSet {
 	weight: number;
 	completed: boolean;
 	notes?: string;
+}
+
+export interface MovementSummary {
+	id: string;
+	name: string;
+	category: string;
+	last_used: string | null;
 }
 
 export interface ExerciseTemplate {
@@ -257,6 +265,30 @@ export class ApiService {
 		}
 		return response.json();
 	}
+
+	async getMovements(): Promise<MovementSummary[]> {
+    return this.request<MovementSummary[]>('/movements')
+  }
+
+  /** Adds an exercise to the active session by movement id or name (found/created). */
+  async addSessionExercise(sessionId: string, target: { movement_id?: string; name?: string }, position?: number): Promise<SessionExercise> {
+    return this.request<SessionExercise>(`/sessions/${sessionId}/movements`, {
+      method: 'POST',
+      body: JSON.stringify({ ...target, ...(position !== undefined && { position }) }),
+    })
+  }
+
+  async removeSessionExercise(id: string): Promise<void> {
+    return this.request<void>(`/sessions/exercises/${id}`, { method: 'DELETE' })
+  }
+
+  async moveSessionExercise(id: string, position: number): Promise<void> {
+    return this.request<void>(`/sessions/exercises/${id}`, { method: 'PATCH', body: JSON.stringify({ position }) })
+  }
+
+  async replaceSessionExercise(id: string, target: { movement_id?: string; name?: string }): Promise<SessionExercise> {
+    return this.request<SessionExercise>(`/sessions/exercises/${id}/replace`, { method: 'POST', body: JSON.stringify(target) })
+  }
 
 	async getExerciseTemplates(): Promise<ExerciseTemplate[]> {
 		return this.request<ExerciseTemplate[]>('/exercise-templates')

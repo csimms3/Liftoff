@@ -157,3 +157,75 @@ describe('App — set edits survive switching views', () => {
     expect(sessionLoads).toBe(loadsBefore) // from App's copy, not a reload
   })
 })
+
+describe('App — editing exercises mid-session', () => {
+  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const sets = (id: string, completed = false) => [{ id: `${id}-1`, weight: 100, reps: 8, completed }]
+  const mk = (id: string, name: string, completed = false) => ({
+    id, exercise_id: '', movement_id: `m-${id}`, name, exercise: { id: '', name }, sets: sets(id, completed), previous: [],
+  })
+  let server: ReturnType<typeof mk>[]
+  const calls: string[] = []
+
+  beforeEach(() => {
+    calls.length = 0
+    server = [mk('a', 'Bench', true), mk('b', 'Row')]
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      if (url.includes('/sessions/active')) return json({ id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true, exercises: server })
+      if (url.endsWith('/workouts')) return json([workout])
+      if (url.endsWith('/movements') && method === 'GET') return json([{ id: 'm-x', name: 'Squat', category: 'legs', last_used: null }])
+      if (url.endsWith('/exercise-templates')) return json([])
+      if (url.endsWith('/sessions/s1/movements') && method === 'POST') {
+        calls.push('add ' + init?.body)
+        const added = mk('c', 'Squat')
+        server.push(added)
+        return json(added, 201)
+      }
+      const del = url.match(/\/sessions\/exercises\/(\w+)$/)
+      if (del && method === 'DELETE') { calls.push('remove ' + del[1]); return json(undefined, 204) }
+      if (del && method === 'PATCH') { calls.push('move ' + del[1] + ' ' + init?.body); return json(undefined, 204) }
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+  })
+
+  const open = async () => {
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue Session' }))
+    await screen.findByRole('button', { name: '+ Add exercise' })
+  }
+
+  test('add exercise from the picker appends it', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: '+ Add exercise' }))
+    fireEvent.click(await screen.findByText('Squat'))
+    await screen.findByRole('heading', { name: 'Squat' })
+    expect(calls).toEqual(['add {"movement_id":"m-x"}'])
+  })
+
+  test('removing an exercise with logged sets asks first; without, it does not', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Bench options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(calls).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Row options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Row' })).toBeNull())
+    expect(confirm).toHaveBeenCalledOnce() // no prompt for Row (nothing logged)
+    expect(calls).toEqual(['remove b'])
+    confirm.mockRestore()
+  })
+
+  test('move down reorders and tells the server the new position', async () => {
+    await open()
+    fireEvent.click(screen.getByRole('button', { name: 'Bench options' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Move down' }))
+    await waitFor(() => expect(calls).toEqual(['move a {"position":1}']))
+    const headings = screen.getAllByRole('heading', { level: 3 }).map(h => h.textContent)
+    expect(headings.indexOf('Row')).toBeLessThan(headings.indexOf('Bench'))
+  })
+})

@@ -17,9 +17,13 @@ export async function quickLogSet(
   reps: number,
   weight: number,
   notes?: string,
+  movementId?: string,
 ): Promise<void> {
   if (activeSession) {
-    const existing = activeSession.exercises?.find((se) => se.exercise_id === exerciseId)
+    // Rows added or replaced mid-session have no plan link, so match the movement too.
+    const existing = activeSession.exercises?.find(
+      (se) => se.exercise_id === exerciseId || (movementId && se.movement_id === movementId),
+    )
     const sessionExercise = existing ?? (await api.addExerciseToSession(activeSession.id, exerciseId))
     const set = await api.createSet(sessionExercise.id, reps, weight)
     await api.updateSet(set.id, reps, weight, notes)

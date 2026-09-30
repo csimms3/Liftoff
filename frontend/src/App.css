@@ -1181,8 +1181,12 @@ input::placeholder, textarea::placeholder {
   }
 
   .session-exercise h3 {
-    margin: 0 0.25rem 0.75rem;
+    margin: 0 0.25rem;
     font-size: 1.1rem;
+  }
+
+  .session-exercise-head {
+    margin-bottom: 0.75rem;
   }
 
   .set-row {
@@ -1199,6 +1203,208 @@ input::placeholder, textarea::placeholder {
     width: 2.1rem;
     height: 2.1rem;
   }
+}
+
+/* Session exercise header, ⋯ menu, add button, picker sheet */
+.session-exercise-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.session-exercise-head h3 {
+  margin: 0;
+}
+
+.exercise-menu {
+  position: relative;
+}
+
+.exercise-menu-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.exercise-menu-button:hover,
+.exercise-menu-button[aria-expanded="true"] {
+  background: var(--bg-secondary);
+  border-color: var(--border-color);
+}
+
+.exercise-menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.25rem);
+  z-index: 20;
+  min-width: 10rem;
+  display: flex;
+  flex-direction: column;
+  padding: 0.25rem;
+  border-radius: 10px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  box-shadow: 0 8px 24px var(--shadow-color);
+}
+
+.exercise-menu-list button {
+  padding: 0.6rem 0.75rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.exercise-menu-list button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+}
+
+.exercise-menu-list button:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+.exercise-menu-list button.danger {
+  color: var(--danger-color);
+}
+
+.add-exercise-button {
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.85rem;
+  border-radius: 12px;
+  border: 2px dashed var(--border-color);
+  background: transparent;
+  color: var(--accent-color);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.add-exercise-button:hover {
+  border-style: solid;
+  border-color: var(--accent-color);
+}
+
+.picker-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.picker-sheet {
+  width: min(32rem, 100%);
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-radius: 16px 16px 0 0;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 -8px 32px var(--shadow-color);
+}
+
+@media (min-width: 641px) {
+  .picker-backdrop {
+    align-items: center;
+  }
+  .picker-sheet {
+    border-radius: 16px;
+  }
+}
+
+.picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.picker-head h3 {
+  margin: 0;
+}
+
+.picker-close {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.75rem 1rem;
+  border: 2px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+}
+
+.picker-section {
+  margin: 0.75rem 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 1rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.picker-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.picker-item small {
+  color: var(--text-muted);
+  text-transform: capitalize;
+}
+
+.picker-create {
+  color: var(--accent-color);
+  font-weight: 600;
 }
 
 /* Quick Log Set Form Styles */
