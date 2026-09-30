@@ -693,6 +693,8 @@ input::placeholder, textarea::placeholder {
   border: 1px solid var(--border-color);
   border-radius: 10px;
   padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
@@ -721,6 +723,7 @@ input::placeholder, textarea::placeholder {
 }
 
 .template-card .btn-primary {
+  margin-top: auto; /* pin to the card bottom whatever the description length */
   width: 100%;
 }
 
@@ -1751,19 +1754,36 @@ input::placeholder, textarea::placeholder {
   border: 2px dashed var(--border-color);
 }
 
-.error-banner {
-  background: var(--bg-tertiary);
+/* Bottom of the viewport so it never covers the sticky session header; lifted
+   clear of the rest bar (90) while that shows. Below the picker backdrop (100). */
+.error-toast {
+  position: fixed;
+  bottom: calc(1rem + env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 95;
+  width: min(32rem, calc(100vw - 2rem));
+  background: var(--bg-secondary);
   border: 1px solid var(--danger-color);
   border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  box-shadow: 0 8px 24px var(--shadow-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   color: var(--danger-color);
 }
 
-.error-banner button {
+.error-toast.above-rest-bar {
+  bottom: calc(6rem + env(safe-area-inset-bottom));
+}
+
+.error-toast p {
+  margin: 0;
+}
+
+.error-toast button {
   background: none;
   border: none;
   color: var(--danger-color);
@@ -1772,6 +1792,7 @@ input::placeholder, textarea::placeholder {
   padding: 0;
   width: 24px;
   height: 24px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
