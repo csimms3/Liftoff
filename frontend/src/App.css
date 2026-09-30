@@ -155,8 +155,6 @@ body {
   transform: scale(1.1);
 }
 
-/* Menu style swap buttons */
-
 /* Hamburger Menu */
 .hamburger-menu {
   display: flex;
@@ -345,7 +343,7 @@ body {
 }
 
 /* ==========================================================================
-   Nav variations (minimal, bold, stacked)
+   Navigation
    ========================================================================== */
 
 .app-nav {
