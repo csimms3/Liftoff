@@ -229,3 +229,62 @@ describe('App — editing exercises mid-session', () => {
     expect(headings.indexOf('Row')).toBeLessThan(headings.indexOf('Bench'))
   })
 })
+
+describe('App — finishing a workout', () => {
+  test('Finish opens the summary and finishing ends the session', async () => {
+    const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+    let active = true
+    const calls: string[] = []
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      if (url.includes('/sessions/active')) return active ? json({ id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true, exercises: [] }) : Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+      if (url.endsWith('/sessions/s1/summary')) return json({ session_id: 's1', workout_id: 'w1', workout_name: 'Push', duration_seconds: 600, sets_done: 2, sets_total: 4, volume: 500, can_update_workout: true, changes: { added: ['Lunge'], removed: [], set_counts: [], reordered: false, has_changes: true } })
+      if (url.endsWith('/sessions/s1/finish') && method === 'POST') { calls.push('finish ' + init?.body); active = false; return json({}) }
+      if (url.endsWith('/workouts')) return json([workout])
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue Session' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish' }))
+    await screen.findByText('Add Lunge')
+    fireEvent.click(screen.getByRole('button', { name: 'Finish workout' }))
+    await waitFor(() => expect(calls).toEqual(['finish {"update_workout":true}']))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Finish workout' })).toBeNull())
+  })
+})
+
+describe('App — Finish failures', () => {
+  const workout = { id: 'w1', name: 'Push', exercises: [], created_at: '', updated_at: '' }
+  const setup = (finishStatus: number) => {
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown) => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) })
+      if (url.includes('/sessions/active')) return json({ id: 's1', workout_id: 'w1', workout, started_at: '', is_active: true, exercises: [] })
+      if (url.endsWith('/sessions/s1/summary')) return json({ session_id: 's1', workout_id: 'w1', workout_name: 'Push', duration_seconds: 60, sets_done: 1, sets_total: 2, volume: 10, can_update_workout: true, changes: { added: [], removed: [], set_counts: [], reordered: false, has_changes: false } })
+      if (url.endsWith('/sessions/s1/finish') && init?.method === 'POST') return Promise.resolve({ ok: false, status: finishStatus, json: () => Promise.resolve({}) })
+      if (url.endsWith('/workouts')) return json([workout])
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+  }
+  const openFinish = async () => {
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue Session' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Finish workout' }))
+  }
+
+  test('a server error stays in the dialog so you can retry', async () => {
+    setup(500)
+    await openFinish()
+    expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't finish the workout")
+    expect(screen.getByRole('dialog', { name: 'Finish workout' })).toBeInTheDocument()
+  })
+
+  test('a session that already ended closes the dialog and says so', async () => {
+    setup(404)
+    await openFinish()
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Finish workout' })).toBeNull())
+    expect(await screen.findByText('That workout has already ended')).toBeInTheDocument()
+  })
+})
+

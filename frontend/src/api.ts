@@ -81,6 +81,27 @@ export interface ExerciseSet {
 	notes?: string;
 }
 
+export interface WorkoutChanges {
+	added: string[];
+	removed: string[];
+	set_counts: { name: string; from: number; to: number }[];
+	reordered: boolean;
+	has_changes: boolean;
+}
+
+export interface SessionSummary {
+	session_id: string;
+	workout_id: string;
+	workout_name: string;
+	duration_seconds: number;
+	sets_done: number;
+	sets_total: number;
+	/** weight x reps of completed sets, in lbs */
+	volume: number;
+	changes: WorkoutChanges;
+	can_update_workout: boolean;
+}
+
 export interface MovementSummary {
 	id: string;
 	name: string;
@@ -173,6 +194,23 @@ export class ApiService {
     } catch {
       return null
     }
+  }
+
+  async getSessionSummary(id: string): Promise<SessionSummary> {
+    return this.request<SessionSummary>(`/sessions/${id}/summary`)
+  }
+
+  /** Ends the session; with updateWorkout, also saves its structure to the workout. */
+  async finishSession(id: string, updateWorkout: boolean): Promise<WorkoutSession> {
+    return this.request<WorkoutSession>(`/sessions/${id}/finish`, {
+      method: 'POST',
+      body: JSON.stringify({ update_workout: updateWorkout }),
+    })
+  }
+
+  /** Deletes a session with no logged sets. */
+  async discardSession(id: string): Promise<void> {
+    return this.request<void>(`/sessions/${id}`, { method: 'DELETE' })
   }
 
   async endSession(id: string): Promise<WorkoutSession> {

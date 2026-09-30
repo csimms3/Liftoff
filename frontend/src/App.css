@@ -1205,6 +1205,68 @@ input::placeholder, textarea::placeholder {
   }
 }
 
+/* Finish dialog (reuses the picker sheet) */
+.finish-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.finish-stats div {
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: var(--bg-primary);
+  text-align: center;
+}
+
+.finish-stats dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.finish-stats dd {
+  margin: 0.25rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.finish-update {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+}
+
+.finish-update input {
+  margin-top: 0.3rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.finish-update ul {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.finish-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.finish-actions button {
+  flex: 1 1 8rem;
+  min-height: 2.75rem;
+}
+
 /* Session exercise header, ⋯ menu, add button, picker sheet */
 .session-exercise-head {
   display: flex;

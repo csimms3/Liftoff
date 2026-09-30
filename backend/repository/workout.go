@@ -234,6 +234,10 @@ func (r *WorkoutRepository) CreateExercise(ctx context.Context, userID string, e
 		return fmt.Errorf("begin: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	// Serialize appends to a workout so positions stay unique and contiguous.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "workout:"+exercise.WorkoutID); err != nil {
+		return fmt.Errorf("lock: %w", err)
+	}
 	movementID, err := findOrCreateMovement(ctx, tx, userID, exercise.Name)
 	if err != nil {
 		return err
@@ -241,9 +245,10 @@ func (r *WorkoutRepository) CreateExercise(ctx context.Context, userID string, e
 	id := uuid.New().String()
 	now := time.Now()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO exercises (id, name, sets, reps, weight, workout_id, movement_id, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		id, exercise.Name, exercise.Sets, exercise.Reps, exercise.Weight, exercise.WorkoutID, movementID, now, now); err != nil {
+		INSERT INTO exercises (id, name, sets, reps, weight, workout_id, movement_id, position, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7,
+			(SELECT COALESCE(MAX(position) + 1, 0) FROM exercises WHERE workout_id = $10), $8, $9)`,
+		id, exercise.Name, exercise.Sets, exercise.Reps, exercise.Weight, exercise.WorkoutID, movementID, now, now, exercise.WorkoutID); err != nil {
 		return fmt.Errorf("failed to create exercise: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -273,7 +278,7 @@ func (r *WorkoutRepository) GetExercisesByWorkout(ctx context.Context, workoutID
 		SELECT id, name, sets, reps, weight, workout_id, movement_id, created_at, updated_at
 		FROM exercises
 		WHERE workout_id = $1
-		ORDER BY created_at, id
+		ORDER BY position, created_at, id
 	`
 
 	rows, err := r.db.Query(ctx, query, workoutID)

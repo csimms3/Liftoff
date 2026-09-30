@@ -3,6 +3,7 @@ import { WorkoutLibrary } from './components/WorkoutLibrary'
 import { SetTable } from './components/SetTable'
 import { ExercisePicker, type PickTarget } from './components/ExercisePicker'
 import { ExerciseMenu } from './components/ExerciseMenu'
+import { FinishDialog } from './components/FinishDialog'
 import { QuickLogSetForm } from './components/QuickLogSetForm'
 import { DinoGame } from './components/DinoGame'
 import { quickLogSet as quickLog } from './quickLog'
@@ -424,17 +425,54 @@ export default function App() {
     }
   }
 
-  const endSession = async () => {
+  const [finishing, setFinishing] = useState(false)
+  const [finishError, setFinishError] = useState<string | null>(null)
+
+  // A failed Finish/Discard is shown in the dialog. If the session has changed
+  // underneath it (ended elsewhere: 404; sets logged elsewhere: 409), the dialog's
+  // summary is stale, so close it and reload what the server has.
+  const finishFailed = async (err: unknown, what: string) => {
+    const status = err instanceof Error ? /status: (\d+)/.exec(err.message)?.[1] : undefined
+    if (status === '404' || status === '409') {
+      setFinishing(false)
+      setError(status === '404' ? 'That workout has already ended' : 'Sets were logged in this workout, so it can\'t be discarded')
+      await loadActiveSession()
+      return
+    }
+    setFinishError(`Couldn't ${what}. Try again.`)
+  }
+
+  // Ends the session from the Finish dialog, optionally saving its structure to
+  // the workout, or discards it (nothing logged).
+  const finishSession = async (updateWorkout: boolean) => {
     if (!activeSession) return
-    
     try {
       setLoading(true)
-      await apiService.endSession(activeSession.id)
-      loadActiveSession() // Reload active session to update its state
-      loadProgressData() // Reload progress data
+      setFinishError(null)
+      await apiService.finishSession(activeSession.id, updateWorkout)
+      setFinishing(false)
+      await loadActiveSession()
+      loadProgressData()
+      if (updateWorkout) loadWorkouts() // the workout changed
       setView('workouts')
-    } catch {
-      setError('Failed to end session')
+    } catch (err) {
+      await finishFailed(err, 'finish the workout')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const discardSession = async () => {
+    if (!activeSession) return
+    try {
+      setLoading(true)
+      setFinishError(null)
+      await apiService.discardSession(activeSession.id)
+      setFinishing(false)
+      await loadActiveSession()
+      setView('workouts')
+    } catch (err) {
+      await finishFailed(err, 'discard the workout')
     } finally {
       setLoading(false)
     }
@@ -1004,8 +1042,8 @@ export default function App() {
                   Started {new Date(activeSession.started_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                 </p>
               </div>
-              <button onClick={endSession} className="btn-danger">
-                End Session
+              <button onClick={() => setFinishing(true)} className="btn-primary">
+                Finish
               </button>
             </div>
 
@@ -1042,6 +1080,19 @@ export default function App() {
             <button type="button" className="add-exercise-button" onClick={() => setPicker({ mode: 'add' })}>
               + Add exercise
             </button>
+
+            {finishing && (
+              <FinishDialog
+                api={apiService}
+                sessionId={activeSession.id}
+                weightUnit={weightUnit}
+                busy={loading}
+                error={finishError}
+                onClose={() => { setFinishing(false); setFinishError(null) }}
+                onFinish={finishSession}
+                onDiscard={discardSession}
+              />
+            )}
 
             {picker && (
               <ExercisePicker
