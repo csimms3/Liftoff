@@ -30,6 +30,7 @@ export default function App() {
   const [progressError, setProgressError] = useState<string | null>(null);
   
   const [newWorkoutName, setNewWorkoutName] = useState('')
+  const [addingWorkout, setAddingWorkout] = useState(false)
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
   const [addingToWorkout, setAddingToWorkout] = useState(false);
   const [routines, setRoutines] = useState<Routine[]>([]);
@@ -299,6 +300,12 @@ export default function App() {
   // The server orders workouts by routine, then position.
   const routineWorkouts = workouts.filter(w => w.routine_id === currentRoutineId)
 
+  const cancelAddWorkout = () => {
+    setAddingWorkout(false)
+    setNewWorkoutName('')
+  }
+
+  // Adds a workout to the current routine.
   const createWorkout = async () => {
     if (!newWorkoutName.trim()) return
     
@@ -306,6 +313,7 @@ export default function App() {
       setLoading(true)
       await apiService.createWorkout(newWorkoutName.trim(), currentRoutineId ?? undefined)
       setNewWorkoutName('')
+      setAddingWorkout(false)
       // It lands at the end of the current routine. With no routine yet, the server starts "My Workouts".
       await Promise.all([loadWorkouts(), loadRoutines(), loadCurrentRoutine()])
     } catch {
@@ -818,27 +826,6 @@ export default function App() {
         {view === 'workouts' && (
           <div className="workouts-view">
             <div className="left-panel">
-              <div className="workout-section">
-                <h2>Create New Workout</h2>
-                <div className="input-group">
-                  <input
-                    type="text"
-                    placeholder="Workout name..."
-                    value={newWorkoutName}
-                    onChange={(e) => setNewWorkoutName(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && createWorkout()}
-                    disabled={loading}
-                  />
-                  <button 
-                    className="btn-primary"
-                    onClick={createWorkout}
-                    disabled={loading || !newWorkoutName.trim()}
-                  >
-                    {loading ? 'Creating...' : 'Create'}
-                  </button>
-                </div>
-              </div>
-
               <div className="workouts-section">
                 <div className="routine-switch">
                   <h2>{currentRoutine?.name ?? 'Workouts'}</h2>
@@ -853,15 +840,14 @@ export default function App() {
                     </select>
                   )}
                 </div>
-                {currentRoutine && <p className="section-desc">Workouts in this routine</p>}
                 {loading ? (
                   <div className="loading-state">
                     <p>Loading workouts...</p>
                   </div>
                 ) : routines.length === 0 ? (
-                  <p className="empty-state">No routine yet: create a workout to start one, or pick a template on the Routines tab.</p>
+                  <p className="empty-state">No routine yet: add a workout to start one, or pick a template on the Routines tab.</p>
                 ) : routineWorkouts.length === 0 ? (
-                  <p className="empty-state">No workouts in this routine yet. Create one above!</p>
+                  <p className="empty-state">No workouts in this routine yet.</p>
                 ) : (
                   <div className="workout-cards">
                     {routineWorkouts.map(workout => (
@@ -899,6 +885,28 @@ export default function App() {
                       </div>
                     ))}
                   </div>
+                )}
+                {addingWorkout ? (
+                  <form className="input-group add-workout-form" onSubmit={e => { e.preventDefault(); void createWorkout() }}>
+                    <input
+                      type="text"
+                      aria-label="Workout name"
+                      placeholder="Workout name..."
+                      autoFocus
+                      value={newWorkoutName}
+                      onChange={(e) => setNewWorkoutName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Escape' && cancelAddWorkout()}
+                      disabled={loading}
+                    />
+                    <button type="submit" className="btn-primary" disabled={loading || !newWorkoutName.trim()}>
+                      {loading ? 'Adding...' : 'Add'}
+                    </button>
+                    <button type="button" className="btn-secondary" onClick={cancelAddWorkout}>Cancel</button>
+                  </form>
+                ) : (
+                  <button type="button" className="add-exercise-button" onClick={() => setAddingWorkout(true)} disabled={loading}>
+                    + Add workout
+                  </button>
                 )}
               </div>
             </div>

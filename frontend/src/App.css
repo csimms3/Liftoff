@@ -1402,6 +1402,10 @@ input::placeholder, textarea::placeholder {
   cursor: pointer;
 }
 
+.add-workout-form {
+  margin-top: 1.25rem;
+}
+
 .add-exercise-button:hover {
   border-style: solid;
   border-color: var(--accent-color);
@@ -2480,7 +2484,7 @@ input:disabled {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
-  margin-bottom: 0.25rem;
+  margin-bottom: 1rem;
 }
 
 .workouts-section .routine-switch h2 {
