@@ -342,6 +342,82 @@ func (r *WorkoutRepository) DeleteExercise(ctx context.Context, userID, id strin
 	return nil
 }
 
+// ExercisePatch is a partial update of a workout exercise's plan; nil fields are left alone.
+type ExercisePatch struct {
+	Sets     *int
+	Reps     *int
+	Weight   *float64
+	Position *int // moves within the workout (clamped)
+}
+
+// UpdateExercise edits the planned sets, reps, weight and/or position of one of
+// userID's workout exercises and returns it. ErrNotFound if it isn't theirs.
+func (r *WorkoutRepository) UpdateExercise(ctx context.Context, userID, id string, p ExercisePatch) (*models.Exercise, error) {
+	tx, err := r.db.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	var workoutID string
+	err = tx.QueryRow(ctx, `SELECT e.workout_id FROM exercises e JOIN workouts w ON w.id = e.workout_id
+		WHERE e.id = $1 AND w.user_id = $2`, id, userID).Scan(&workoutID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	// Same lock as CreateExercise, so a move can't race an append.
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "workout:"+workoutID); err != nil {
+		return nil, fmt.Errorf("lock: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE exercises SET sets = COALESCE($2, sets), reps = COALESCE($3, reps),
+			weight = COALESCE($4, weight), updated_at = $5
+		WHERE id = $1`, id, p.Sets, p.Reps, p.Weight, time.Now()); err != nil {
+		return nil, fmt.Errorf("failed to update exercise: %w", err)
+	}
+	if p.Position != nil {
+		// Renumber (deletes leave gaps), then move: a lower position shifts the
+		// others down, a higher one shifts them up.
+		if _, err := tx.Exec(ctx, `
+			UPDATE exercises x SET position = r.n
+			FROM (SELECT id, ROW_NUMBER() OVER (ORDER BY position, created_at, id) - 1 AS n
+				FROM exercises WHERE workout_id = $1) r
+			WHERE x.id = r.id AND x.position <> r.n`, workoutID); err != nil {
+			return nil, err
+		}
+		var count, current int
+		if err := tx.QueryRow(ctx, `SELECT COUNT(*), (SELECT position FROM exercises WHERE id = $2)
+			FROM exercises WHERE workout_id = $1`, workoutID, id).Scan(&count, &current); err != nil {
+			return nil, err
+		}
+		target := min(max(*p.Position, 0), count-1)
+		switch {
+		case target < current:
+			_, err = tx.Exec(ctx, `UPDATE exercises SET position = position + 1 WHERE workout_id = $1 AND position >= $2 AND position < $3`, workoutID, target, current)
+		case target > current:
+			_, err = tx.Exec(ctx, `UPDATE exercises SET position = position - 1 WHERE workout_id = $1 AND position > $2 AND position <= $3`, workoutID, current, target)
+		}
+		if err != nil {
+			return nil, err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE exercises SET position = $2 WHERE id = $1`, id, target); err != nil {
+			return nil, err
+		}
+	}
+	var ex models.Exercise
+	if err := tx.QueryRow(ctx, `SELECT id, name, sets, reps, weight, workout_id, movement_id, created_at, updated_at
+		FROM exercises WHERE id = $1`, id).Scan(&ex.ID, &ex.Name, &ex.Sets, &ex.Reps, &ex.Weight,
+		&ex.WorkoutID, &ex.MovementID, &ex.CreatedAt, &ex.UpdatedAt); err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("failed to update exercise: %w", err)
+	}
+	return &ex, nil
+}
+
 /**
  * GetWorkoutTemplates returns all available workout templates
  *

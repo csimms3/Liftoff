@@ -423,28 +423,6 @@ input::placeholder, textarea::placeholder {
   box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
 }
 
-.exercise-form {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.exercise-form input {
-  padding: 0.75rem 1rem;
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  font-size: 1rem;
-  transition: all 0.2s ease;
-  background: var(--bg-secondary);
-}
-
-.exercise-form input:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.1);
-}
-
 .exercise-inputs {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -620,6 +598,25 @@ input::placeholder, textarea::placeholder {
   padding: 1.25rem;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
   position: relative;
+}
+
+.workout-card.selectable {
+  cursor: pointer;
+}
+
+.workout-card.selected {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
+}
+
+.workout-select {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .workout-card:hover {
@@ -831,6 +828,10 @@ input::placeholder, textarea::placeholder {
 }
 
 .exercise-stats {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   color: var(--text-secondary);
   font-size: 0.9rem;
   margin: 0;
@@ -1516,70 +1517,45 @@ input::placeholder, textarea::placeholder {
   font-weight: 600;
 }
 
-/* Quick Log Set Form Styles */
-.quick-log-trigger {
-  margin-top: 0.5rem;
+/* Planned exercise cards (workout editor) */
+.exercise-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
-.quick-log-form {
+.icon-button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-color);
+  border-radius: 50%;
   background: var(--bg-tertiary);
-  border: 2px solid var(--border-color);
-  border-radius: 12px;
-  padding: 1rem;
-  margin-top: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-}
-
-.quick-log-form h4 {
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 1rem;
-}
-
-.form-inputs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-}
-
-.form-inputs .input-group:last-child {
-  grid-column: 1 / -1;
-}
-
-.form-inputs .input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.form-inputs .input-group label {
-  font-size: 0.8rem;
-  font-weight: 600;
   color: var(--text-secondary);
+  cursor: pointer;
 }
 
-.form-inputs .input-group input {
+.icon-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.exercise-inputs input {
   padding: 0.5rem;
   border: 1px solid var(--border-color);
   border-radius: 6px;
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 0.9rem;
-  transition: border-color 0.2s ease;
 }
 
-.form-inputs .input-group input:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
-}
-
-.form-inputs .input-group input:disabled {
-  background: var(--bg-tertiary);
-  color: var(--text-muted);
-  cursor: not-allowed;
+.exercise-edit-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: 0.5rem;
 }
 
 .form-actions {
@@ -2148,10 +2124,6 @@ input::placeholder, textarea::placeholder {
     width: 100%;
   }
   
-  .exercise-form input {
-    width: 100%;
-  }
-  
   .session-header {
     gap: 0.75rem;
   }
@@ -2214,15 +2186,6 @@ input::placeholder, textarea::placeholder {
   .btn-delete-small {
     padding: 0.25rem 0.5rem;
     font-size: 0.75rem;
-  }
-  
-  .exercise-form {
-    gap: 0.5rem;
-  }
-  
-  .exercise-form input {
-    padding: 0.5rem;
-    font-size: 0.9rem;
   }
   
 }
@@ -2289,61 +2252,6 @@ button:disabled {
 input:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-/* Template Quick Add */
-.template-quick-add {
-  margin-bottom: 20px;
-  padding: 15px;
-  background: var(--bg-tertiary);
-  border-radius: 8px;
-  border: 1px solid var(--border-color);
-}
-
-.template-quick-add h4 {
-  margin: 0 0 10px 0;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.template-dropdown {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.template-dropdown select {
-  flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  background-color: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: 14px;
-}
-
-.template-dropdown select:focus {
-  outline: none;
-  border-color: var(--accent-color);
-  box-shadow: 0 0 0 2px rgba(96, 165, 250, 0.25);
-}
-
-/* Duplicate btn-secondary styles removed - using main definition above */
-
-/* Exercise form styling updates */
-.exercise-form h4 {
-  margin: 0 0 15px 0;
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.exercise-form .input-group label {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  margin-bottom: 0.25rem;
 }
 
 /* ==========================================================================

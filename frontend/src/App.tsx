@@ -9,9 +9,8 @@ import { RestSettingDialog } from './components/RestSettingDialog'
 import { SessionHeader } from './components/SessionHeader'
 import { formatRest } from './formatRest'
 import { useRestTimer } from './useRestTimer'
-import { QuickLogSetForm } from './components/QuickLogSetForm'
+import { PlannedExerciseCard } from './components/PlannedExerciseCard'
 import { DinoGame } from './components/DinoGame'
-import { quickLogSet as quickLog } from './quickLog'
 import { useAuth } from './context/useAuth'
 import { ApiService, type Workout, type WorkoutSession, type ExerciseTemplate, type ProgressData, type Exercise, type ExerciseSet, type SessionExercise, type Routine, type RoutineTemplate } from './api'
 import './App.css'
@@ -31,15 +30,8 @@ export default function App() {
   const [progressError, setProgressError] = useState<string | null>(null);
   
   const [newWorkoutName, setNewWorkoutName] = useState('')
-  const [newExercise, setNewExercise] = useState({
-    name: '',
-    sets: 3,
-    reps: 10,
-    weight: 0
-  })
-  
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
-  const [selectedExerciseTemplate, setSelectedExerciseTemplate] = useState<string>('');
+  const [addingToWorkout, setAddingToWorkout] = useState(false);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [routineTemplates, setRoutineTemplates] = useState<RoutineTemplate[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -81,42 +73,6 @@ export default function App() {
   const formatWeight = (weight: number): string => {
     const convertedWeight = convertWeight(weight, 'lbs', weightUnit);
     return `${convertedWeight.toFixed(1)} ${weightUnit}`;
-  };
-
-  const getWeightType = (exerciseName: string): string => {
-    const name = exerciseName.toLowerCase();
-    
-    const bodyweightKeywords = [
-      'push-up', 'pull-up', 'chin-up', 'dip', 'plank', 'crunch', 'sit-up',
-      'lunge', 'burpee', 'mountain climber', 'jump squat', 'high knee',
-      'side plank', 'russian twist', 'leg raise', 'pike', 'bear crawl',
-      'wall sit', 'jumping jack', 'squat jump', 'pistol squat', 'handstand'
-    ];
-    
-    const machineKeywords = [
-      'lat pulldown', 'cable', 'machine', 'leg press', 'chest press',
-      'seated row', 'tricep pushdown', 'leg extension', 'leg curl',
-      'chest fly', 'shoulder press machine', 'ab crunch machine'
-    ];
-    
-    if (bodyweightKeywords.some(keyword => name.includes(keyword))) {
-      return 'Bodyweight';
-    }
-    
-    if (machineKeywords.some(keyword => name.includes(keyword))) {
-      return 'Machine';
-    }
-    
-    const weightedKeywords = [
-      'barbell', 'dumbbell', 'kettlebell', 'weighted', 'deadlift',
-      'squat', 'press', 'row', 'curl', 'extension', 'raise', 'fly'
-    ];
-    
-    if (weightedKeywords.some(keyword => name.includes(keyword))) {
-      return 'Weighted';
-    }
-    
-    return 'Weighted';
   };
 
   const loadWorkouts = useCallback(async () => {
@@ -344,33 +300,21 @@ export default function App() {
     }
   }
 
-  const addExercise = async () => {
-    if (!newExercise.name.trim() || !currentWorkout) return
-    
+  // Adds to the selected workout's plan: library defaults if the name matches one, else 3 x 10.
+  const addPlannedExercise = async (name: string) => {
+    if (!currentWorkout) return
+    setAddingToWorkout(false)
+    const template = exerciseTemplates.find((t: ExerciseTemplate) => t.name.toLowerCase() === name.toLowerCase())
     try {
       setLoading(true)
       const exercise = await apiService.createExercise({
-        name: newExercise.name.trim(),
-        sets: newExercise.sets,
-        reps: newExercise.reps,
-        weight: newExercise.weight,
+        name,
+        sets: template?.default_sets ?? 3,
+        reps: template?.default_reps ?? 10,
+        weight: template?.default_weight ?? 0,
         workout_id: currentWorkout.id
       })
-      
-      const updatedWorkout = {
-        ...currentWorkout,
-        exercises: [...(currentWorkout.exercises || []), exercise]
-      }
-      
-      setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
-      setCurrentWorkout(updatedWorkout)
-      
-      setNewExercise({
-        name: '',
-        sets: 3,
-        reps: 10,
-        weight: 0
-      })
+      updateWorkoutExercises(currentWorkout.id, list => [...list, exercise])
     } catch (error) {
       console.error('Exercise creation error:', error);
       setError('Failed to add exercise')
@@ -379,38 +323,45 @@ export default function App() {
     }
   }
 
-  const addExerciseFromTemplate = async () => {
-    if (!selectedExerciseTemplate || !currentWorkout) return;
-    
-    const template = exerciseTemplates.find((t: ExerciseTemplate) => t.name === selectedExerciseTemplate);
-    if (!template) return;
+  // Applies fn to the latest exercises of a workout, so results that arrive after an await never clobber newer changes.
+  const updateWorkoutExercises = (workoutId: string, fn: (exercises: Exercise[]) => Exercise[]) => {
+    const apply = (w: Workout) => w.id === workoutId ? { ...w, exercises: fn(w.exercises || []) } : w
+    setWorkouts(ws => ws.map(apply))
+    setCurrentWorkout(w => w && apply(w))
+  }
 
-    setLoading(true);
+  const savePlannedExercise = async (exercise: Exercise, patch: { sets?: number; reps?: number; weight?: number }) => {
     try {
-      const newExercise = await apiService.createExercise({
-        name: template.name,
-        sets: template.default_sets,
-        reps: template.default_reps,
-        weight: template.default_weight,
-        workout_id: currentWorkout.id
-      });
-      
-      const updatedWorkout = {
-        ...currentWorkout,
-        exercises: [...(currentWorkout.exercises || []), newExercise]
-      };
-      setCurrentWorkout(updatedWorkout);
-      setWorkouts(workouts.map((w: Workout) => 
-        w.id === currentWorkout.id ? updatedWorkout : w
-      ));
-      setSelectedExerciseTemplate('');
-    } catch (error) {
-      console.error('Template exercise creation error:', error);
-      setError('Failed to add exercise from template');
-    } finally {
-      setLoading(false);
+      const saved = await apiService.updateExercise(exercise.id, patch)
+      updateWorkoutExercises(exercise.workout_id, list => list.map(e => e.id === saved.id ? saved : e))
+    } catch {
+      setError('Failed to update exercise')
+      throw new Error('update failed') // keeps the card open for another try
     }
-  };
+  }
+
+  // One move at a time, so the local order always matches what the server did.
+  const [moving, setMoving] = useState(false)
+  const movePlannedExercise = async (exercise: Exercise, delta: -1 | 1) => {
+    if (!currentWorkout || moving) return
+    const from = currentWorkout.exercises.findIndex((e: Exercise) => e.id === exercise.id)
+    const to = from + delta
+    if (from < 0 || to < 0 || to >= currentWorkout.exercises.length) return
+    setMoving(true)
+    try {
+      await apiService.updateExercise(exercise.id, { position: to })
+      updateWorkoutExercises(exercise.workout_id, list => {
+        const next = [...list]
+        const i = next.findIndex(e => e.id === exercise.id)
+        if (i >= 0) next.splice(to, 0, next.splice(i, 1)[0])
+        return next
+      })
+    } catch {
+      setError('Failed to move exercise')
+    } finally {
+      setMoving(false)
+    }
+  }
 
   const startWorkout = async (workout: Workout) => {
     // Continuing the workout in progress: just show it. Starting any session ends
@@ -433,20 +384,6 @@ export default function App() {
     } catch (error) {
       console.error('Failed to start workout session:', error)
       setError('Failed to start workout session')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const quickLogSet = async (exerciseId: string, reps: number, weight: number, notes?: string, movementId?: string) => {
-    try {
-      setLoading(true)
-      await quickLog(apiService, activeSession, currentWorkout!.id, exerciseId, reps, weight, notes, movementId)
-      loadActiveSession()
-      loadProgressData() // Refresh progress data
-    } catch (error) {
-      console.error('Failed to quick log set:', error)
-      setError('Failed to log set')
     } finally {
       setLoading(false)
     }
@@ -505,6 +442,13 @@ export default function App() {
     }
   }
 
+  // Clicking a workout card opens its plan in the editor; on narrow screens the editor is below the list.
+  const editorPanel = useRef<HTMLDivElement>(null)
+  const selectWorkout = (workout: Workout) => {
+    setCurrentWorkout(workout)
+    setTimeout(() => editorPanel.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' }), 0)
+  }
+
   const deleteWorkout = async (workoutId: string) => {
     if (window.confirm('Are you sure you want to delete this workout?')) {
       try {
@@ -555,13 +499,7 @@ export default function App() {
     try {
       setLoading(true)
       await apiService.deleteExercise(exerciseId)
-      const updatedWorkout = {
-        ...currentWorkout,
-        exercises: currentWorkout.exercises.filter((e: Exercise) => e.id !== exerciseId)
-      }
-      
-      setWorkouts(workouts.map((w: Workout) => w.id === currentWorkout.id ? updatedWorkout : w))
-      setCurrentWorkout(updatedWorkout)
+      updateWorkoutExercises(currentWorkout.id, list => list.filter(e => e.id !== exerciseId))
     } catch {
       setError('Failed to delete exercise')
     } finally {
@@ -868,9 +806,17 @@ export default function App() {
                 ) : (
                   <div className="workout-cards">
                     {workouts.map(workout => (
-                      <div key={workout.id} className="workout-card">
+                      <div
+                        key={workout.id}
+                        className={`workout-card selectable${currentWorkout?.id === workout.id ? ' selected' : ''}`}
+                        onClick={e => { if (!(e.target as HTMLElement).closest('button')) selectWorkout(workout) }}
+                      >
                         <div className="workout-header">
-                          <h3>{workout.name}</h3>
+                          <h3>
+                            <button type="button" className="workout-select" aria-pressed={currentWorkout?.id === workout.id} onClick={() => selectWorkout(workout)}>
+                              {workout.name}
+                            </button>
+                          </h3>
                           <button 
                             className="btn-delete"
                             onClick={() => deleteWorkout(workout.id)}
@@ -898,121 +844,37 @@ export default function App() {
               </div>
             </div>
 
-            <div className="right-panel">
+            <div className="right-panel" ref={editorPanel}>
               {currentWorkout ? (
                 <div className="current-workout">
                   <h2>Current Workout: {currentWorkout.name}</h2>
-                  <div className="add-exercise">
-                    <h3>Add Exercise</h3>
-                    
-                    {/* Template Quick Add */}
-                    <div className="template-quick-add">
-                      <h4>Quick Add Exercise</h4>
-                      <div className="template-dropdown">
-                        <select
-                          value={selectedExerciseTemplate}
-                          onChange={(e) => setSelectedExerciseTemplate(e.target.value)}
-                          disabled={loading || exerciseTemplates.length === 0}
-                        >
-                          <option value="">Select an exercise...</option>
-                          {exerciseTemplates.map(template => (
-                            <option key={template.name} value={template.name}>
-                              {template.name} ({template.category}) - {getWeightType(template.name)}
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          className="btn-secondary"
-                          onClick={addExerciseFromTemplate}
-                          disabled={loading || !selectedExerciseTemplate}
-                        >
-                          Add Exercise
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="exercise-form">
-                      <h4>Add Custom Exercise</h4>
-                      <input
-                        type="text"
-                        placeholder="Exercise name..."
-                        value={newExercise.name}
-                        onChange={(e) => setNewExercise({...newExercise, name: e.target.value})}
-                        disabled={loading}
-                      />
-                      <div className="exercise-inputs">
-                        <div className="input-group">
-                          <label htmlFor="sets-input">Sets</label>
-                          <input
-                            id="sets-input"
-                            type="number"
-                            placeholder="Number of sets"
-                            value={newExercise.sets}
-                            onChange={(e) => setNewExercise({...newExercise, sets: parseInt(e.target.value) || 0})}
-                            disabled={loading}
-                          />
-                        </div>
-                        <div className="input-group">
-                          <label htmlFor="reps-input">Reps</label>
-                          <input
-                            id="reps-input"
-                            type="number"
-                            placeholder="Reps per set"
-                            value={newExercise.reps}
-                            onChange={(e) => setNewExercise({...newExercise, reps: parseInt(e.target.value) || 0})}
-                            disabled={loading}
-                          />
-                        </div>
-                        <div className="input-group">
-                          <label htmlFor="weight-input">Weight ({weightUnit})</label>
-                          <input
-                            id="weight-input"
-                            type="number"
-                            placeholder={`Weight in ${weightUnit}`}
-                            value={newExercise.weight}
-                            onChange={(e) => setNewExercise({...newExercise, weight: parseFloat(e.target.value) || 0})}
-                            disabled={loading}
-                          />
-                        </div>
-                      </div>
-                      <button 
-                        className="btn-primary"
-                        onClick={addExercise}
-                        disabled={loading || !newExercise.name.trim()}
-                      >
-                        {loading ? 'Adding...' : 'Add Exercise'}
-                      </button>
-                    </div>
-                  </div>
-
                   <div className="exercise-cards">
-                    {currentWorkout.exercises?.map(exercise => (
-                      <div key={exercise.id} className="exercise-card">
-                        <div className="exercise-header">
-                          <h4>{exercise.name}</h4>
-                          <button 
-                            className="btn-delete-small"
-                            onClick={() => deleteExercise(exercise.id)}
-                            disabled={loading}
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="exercise-stats">
-                          <span>{`${exercise.sets} sets × ${exercise.reps} reps`}</span>
-                          {exercise.weight > 0 && <span>{formatWeight(exercise.weight)}</span>}
-                        </div>
-                        <QuickLogSetForm
-                          exerciseName={exercise.name}
-                          plannedReps={exercise.reps}
-                          plannedWeight={exercise.weight}
-                          onLogSet={(reps, weight, notes) => quickLogSet(exercise.id, reps, weight, notes, exercise.movement_id)}
-                          loading={loading}
-                          weightUnit={weightUnit}
-                        />
-                      </div>
+                    {currentWorkout.exercises?.map((exercise, index, all) => (
+                      <PlannedExerciseCard
+                        key={exercise.id}
+                        exercise={exercise}
+                        weightUnit={weightUnit}
+                        convertWeight={convertWeight}
+                        canMoveUp={index > 0 && !moving}
+                        canMoveDown={index < all.length - 1 && !moving}
+                        disabled={loading}
+                        onSave={patch => savePlannedExercise(exercise, patch)}
+                        onMove={delta => movePlannedExercise(exercise, delta)}
+                        onRemove={() => deleteExercise(exercise.id)}
+                      />
                     )) || <p>No exercises yet</p>}
                   </div>
+                  <button type="button" className="add-exercise-button" onClick={() => setAddingToWorkout(true)} disabled={loading}>
+                    + Add exercise
+                  </button>
+                  {addingToWorkout && (
+                    <ExercisePicker
+                      api={apiService}
+                      title="Add exercise"
+                      onClose={() => setAddingToWorkout(false)}
+                      onPick={(_, name) => addPlannedExercise(name)}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="empty-state">
