@@ -12,21 +12,23 @@ Extend Liftoff to support both **individual workouts** and **multi-workout routi
 - `id`, `user_id`, `name`, `description` (optional), `created_at`, `updated_at`
 - A named program (e.g., "Push Pull Legs")
 
-**RoutineWorkout**
-- `id`, `routine_id`, `workout_id`, `slot_order` (1, 2, 3...)
-- Links workouts to a routine with ordering
-- A workout can be reused across multiple routines
+**Workout ownership** (migration 010; replaces the old `routine_workouts` link table)
+- `workouts.routine_id` (NOT NULL, FK, ON DELETE CASCADE) and `workouts.position` (1, 2, 3...)
+- Every workout belongs to exactly one routine; the API still reports each routine's workouts as
+  `RoutineWorkout` entries (`id` = the workout id, `slot_order` = position)
+- `users.current_routine_id` (FK, ON DELETE SET NULL) is the routine the main page shows
 
 ### Relationships
 
 ```
-User 1──* Routine 1──* RoutineWorkout *──1 Workout
-                                    (slot_order)
+User 1──* Routine 1──* Workout
+                    (position)
 ```
 
-- Workouts remain standalone; routines reference them
-- Deleting a routine does not delete its workouts
-- Deleting a workout removes it from any routines that reference it (CASCADE or soft-remove from routine_workouts)
+- A workout is created in a routine (POST /api/workouts takes an optional `routine_id`, defaulting to the current routine)
+- Moving a workout into another routine (routine create/update `workout_ids`) moves it out of its old one
+- Deleting a routine deletes its workouts; logged sessions keep their name snapshots
+- Deleting the current routine makes another of the user's routines current, or none
 
 ## Session Tracking
 
@@ -45,9 +47,8 @@ Predefined templates (in code) that users can instantiate:
 | Full Body      | Full Body                   | Single workout (1-day)        |
 
 When user "creates from template":
-1. Create each workout with exercises
-2. Create the routine
-3. Link workouts to routine via routine_workouts
+1. Create the routine
+2. Create each workout in it, with exercises
 
 ## API Design
 
@@ -56,7 +57,9 @@ GET    /api/routines              List user's routines (with workout summaries)
 POST   /api/routines              Create routine (body: name, workout_ids in order)
 GET    /api/routines/:id          Get routine with full workouts + exercises
 PUT    /api/routines/:id          Update routine (name, reorder workouts)
-DELETE /api/routines/:id          Delete routine (workouts remain)
+DELETE /api/routines/:id          Delete routine and its workouts
+GET    /api/routines/current      Current routine id ({"routine_id": id|null})
+PUT    /api/routines/current      Set current routine (body: routine_id)
 GET    /api/routines/templates    List available templates (metadata only)
 POST   /api/routines/from-template/:templateId   Create routine + workouts from template
 ```
@@ -72,6 +75,6 @@ POST   /api/routines/from-template/:templateId   Create routine + workouts from 
 ## Considerations
 
 - **Backward compatibility**: Existing workouts and sessions unchanged
-- **Orphaned workouts**: If user deletes a routine, workouts stay; if user deletes a workout, remove from routine_workouts (or CASCADE)
+- **Orphaned workouts**: none; workouts without a routine were put in a "My Workouts" routine by migration 010
 - **Templates are code-defined**: No DB table for templates; easy to add new ones
 - **Sample data**: New users can optionally add sample routines from templates on first load (or via explicit "Add sample routines" action)

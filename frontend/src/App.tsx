@@ -290,9 +290,10 @@ export default function App() {
     
     try {
       setLoading(true)
-      const workout = await apiService.createWorkout(newWorkoutName.trim())
-      setWorkouts([...workouts, workout])
+      await apiService.createWorkout(newWorkoutName.trim())
       setNewWorkoutName('')
+      // The server decides where it lands (its routine, after that routine's other workouts).
+      await loadWorkouts()
     } catch {
       setError('Failed to create workout')
     } finally {
@@ -480,11 +481,19 @@ export default function App() {
   }
 
   const deleteRoutine = async (routineId: string) => {
-    if (window.confirm('Delete this routine? Workouts will remain.')) {
+    const routine = routines.find(r => r.id === routineId)
+    const count = routine?.workouts?.length ?? 0
+    const what = count === 0
+      ? 'It has no workouts.'
+      : `Its ${count} ${count === 1 ? 'workout' : 'workouts'} will be deleted too.`
+    if (window.confirm(`Delete the routine "${routine?.name ?? 'this routine'}"? ${what} Logged workout history is kept.`)) {
       try {
         setLoading(true)
         await apiService.deleteRoutine(routineId)
         setRoutines(routines.filter(r => r.id !== routineId))
+        // Its workouts went with it.
+        if (currentWorkout?.routine_id === routineId) setCurrentWorkout(null)
+        await loadWorkouts()
       } catch {
         setError('Failed to delete routine')
       } finally {

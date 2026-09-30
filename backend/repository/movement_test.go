@@ -22,7 +22,7 @@ func logFirstSet(t *testing.T, e *env, userID string, s *models.WorkoutSession, 
 func workoutWith(t *testing.T, e *env, userID, name, exercise string) *models.Workout {
 	t.Helper()
 	ctx := context.Background()
-	w, err := e.workouts.CreateWorkout(ctx, userID, name)
+	w, err := e.workouts.CreateWorkout(ctx, userID, name, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestPrevious_RepeatedMovementPairsByOccurrence(t *testing.T) {
 	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
-		w, err := e.workouts.CreateWorkout(ctx, me, "Bench day")
+		w, err := e.workouts.CreateWorkout(ctx, me, "Bench day", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -216,7 +216,7 @@ func TestCreateExercise_BlankNameCreatesNothing(t *testing.T) {
 	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
-		w, err := e.workouts.CreateWorkout(ctx, me, "W")
+		w, err := e.workouts.CreateWorkout(ctx, me, "W", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -235,7 +235,7 @@ func TestCreateExercise_ConcurrentSameNewNameIsOneMovement(t *testing.T) {
 		me := e.user(t, "me@example.com")
 		var workouts []*models.Workout
 		for i := 0; i < 4; i++ {
-			w, err := e.workouts.CreateWorkout(ctx, me, "W")
+			w, err := e.workouts.CreateWorkout(ctx, me, "W", "")
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -66,7 +66,7 @@ func (e *env) user(t *testing.T, email string) string {
 func (e *env) workout(t *testing.T, userID, name string, sets ...int) *models.Workout {
 	t.Helper()
 	ctx := context.Background()
-	w, err := e.workouts.CreateWorkout(ctx, userID, name)
+	w, err := e.workouts.CreateWorkout(ctx, userID, name, "")
 	if err != nil {
 		t.Fatal(err)
 	}

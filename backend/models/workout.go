@@ -16,8 +16,10 @@ const (
 
 // Workout represents a workout plan with exercises
 type Workout struct {
-	ID        string     `json:"id" db:"id"`
-	UserID    string     `json:"-" db:"user_id"`
+	ID     string `json:"id" db:"id"`
+	UserID string `json:"-" db:"user_id"`
+	// RoutineID is the routine the workout belongs to (every workout has exactly one).
+	RoutineID string     `json:"routine_id" db:"routine_id"`
 	Name      string     `json:"name" db:"name"`
 	Type      string     `json:"type" db:"type"`
 	Exercises []Exercise `json:"exercises" db:"-"`

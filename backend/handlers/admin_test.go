@@ -116,8 +116,9 @@ func TestGetStats_WithData(t *testing.T) {
 	db := newTestDB(t)
 	testdb.Exec(t, db,
 		`INSERT INTO users (id, email, password_hash) VALUES ('u1','a@b.com','h')`,
-		`INSERT INTO workouts (id, name, user_id) VALUES ('w1','Workout A','u1')`,
-		`INSERT INTO workouts (id, name, user_id) VALUES ('w2','Workout B','u1')`,
+		`INSERT INTO routines (id, user_id, name) VALUES ('r1','u1','R')`,
+		`INSERT INTO workouts (id, name, user_id, routine_id) VALUES ('w1','Workout A','u1','r1')`,
+		`INSERT INTO workouts (id, name, user_id, routine_id) VALUES ('w2','Workout B','u1','r1')`,
 		`INSERT INTO workout_sessions (id, workout_id, user_id) VALUES ('s1','w1','u1')`,
 	)
 

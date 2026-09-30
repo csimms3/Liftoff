@@ -19,6 +19,8 @@ export function dispatchUnauthorized(): void {
 // Data model interfaces
 export interface Workout {
 	id: string;
+	/** The routine the workout belongs to (every workout has exactly one). */
+	routine_id: string;
 	name: string;
 	type?: string;
 	exercises: Exercise[];
@@ -159,10 +161,11 @@ export class ApiService {
     return this.request<Workout[]>('/workouts')
   }
 
-  async createWorkout(name: string): Promise<Workout> {
+  /** Creates a workout in `routineId`, or in the user's current routine when omitted. */
+  async createWorkout(name: string, routineId?: string): Promise<Workout> {
     return this.request<Workout>('/workouts', {
       method: 'POST',
-      body: JSON.stringify({ name }),
+      body: JSON.stringify({ name, routine_id: routineId }),
     })
   }
 
@@ -372,6 +375,19 @@ export class ApiService {
 	// Routine endpoints
 	async getRoutines(): Promise<Routine[]> {
 		return this.request<Routine[]>('/routines')
+	}
+
+	/** The routine the main page shows; null when the user has none. */
+	async getCurrentRoutineId(): Promise<string | null> {
+		const res = await this.request<{ routine_id: string | null }>('/routines/current')
+		return res.routine_id
+	}
+
+	async setCurrentRoutine(routineId: string): Promise<void> {
+		await this.request<{ routine_id: string }>('/routines/current', {
+			method: 'PUT',
+			body: JSON.stringify({ routine_id: routineId }),
+		})
 	}
 
 	async getRoutine(id: string): Promise<Routine> {

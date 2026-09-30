@@ -51,36 +51,48 @@ func NewWorkoutRepository(db *pgxpool.Pool) *WorkoutRepository {
  * Args:
  * - ctx: Context for the operation
  * - name: Name of the workout to create
+ * - routineID: routine to put it in; "" means the user's current routine
+ *   (created on demand if the user has none). ErrNotFound if it isn't the user's.
  *
  * Returns:
  * - *models.Workout: Created workout with generated ID and timestamps
  * - error: Creation error if any
  */
-func (r *WorkoutRepository) CreateWorkout(ctx context.Context, userID, name string) (*models.Workout, error) {
+func (r *WorkoutRepository) CreateWorkout(ctx context.Context, userID, name, routineID string) (*models.Workout, error) {
 	id := uuid.New().String()
 	now := time.Now()
 
-	query := `
-		INSERT INTO workouts (id, user_id, name, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, user_id, name, created_at, updated_at
-	`
-
 	var workout models.Workout
-	err := r.db.QueryRow(ctx, query, id, userID, name, now, now).Scan(
-		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
-	)
+	err := withTx(ctx, r.db, func(tx tx) error {
+		rid, err := resolveRoutine(ctx, tx, userID, routineID)
+		if err != nil {
+			return err
+		}
+		// Serialize appends to a routine so positions stay unique and contiguous.
+		if err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1))`, "routine:"+rid); err != nil {
+			return fmt.Errorf("lock: %w", err)
+		}
+		return tx.QueryRow(ctx, `
+			INSERT INTO workouts (id, user_id, name, routine_id, position, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, (SELECT COALESCE(MAX(position), 0) + 1 FROM workouts WHERE routine_id = $5), $6, $7)
+			RETURNING id, user_id, routine_id, name, created_at, updated_at`,
+			[]any{id, userID, name, rid, rid, now, now},
+			&workout.ID, &workout.UserID, &workout.RoutineID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
+	})
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("failed to create workout: %w", err)
 	}
-
 	return &workout, nil
 }
 
 /**
  * GetWorkouts retrieves all workouts from the database
  *
- * Returns workouts ordered by creation date (newest first).
+ * Returns workouts grouped by routine (oldest routine first), in their order
+ * within the routine.
  *
  * Args:
  * - ctx: Context for the operation
@@ -91,10 +103,11 @@ func (r *WorkoutRepository) CreateWorkout(ctx context.Context, userID, name stri
  */
 func (r *WorkoutRepository) GetWorkouts(ctx context.Context, userID string) ([]*models.Workout, error) {
 	query := `
-		SELECT id, user_id, name, created_at, updated_at
-		FROM workouts
-		WHERE user_id = $1
-		ORDER BY created_at DESC
+		SELECT w.id, w.user_id, w.routine_id, w.name, w.created_at, w.updated_at
+		FROM workouts w
+		JOIN routines r ON r.id = w.routine_id
+		WHERE w.user_id = $1
+		ORDER BY r.created_at, r.id, w.position, w.created_at, w.id
 	`
 
 	rows, err := r.db.Query(ctx, query, userID)
@@ -106,7 +119,7 @@ func (r *WorkoutRepository) GetWorkouts(ctx context.Context, userID string) ([]*
 	var workouts []*models.Workout
 	for rows.Next() {
 		var workout models.Workout
-		err := rows.Scan(&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
+		err := rows.Scan(&workout.ID, &workout.UserID, &workout.RoutineID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan workout: %w", err)
 		}
@@ -164,14 +177,14 @@ func (r *WorkoutRepository) GetWorkout(ctx context.Context, userID, id string) (
  */
 func (r *WorkoutRepository) getWorkout(ctx context.Context, userID, id string) (*models.Workout, error) {
 	query := `
-		SELECT id, user_id, name, created_at, updated_at
+		SELECT id, user_id, routine_id, name, created_at, updated_at
 		FROM workouts
 		WHERE id = $1 AND user_id = $2
 	`
 
 	var workout models.Workout
 	err := r.db.QueryRow(ctx, query, id, userID).Scan(
-		&workout.ID, &workout.UserID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
+		&workout.ID, &workout.UserID, &workout.RoutineID, &workout.Name, &workout.CreatedAt, &workout.UpdatedAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -615,7 +628,7 @@ func (r *WorkoutRepository) getPredefinedTemplates() []*models.WorkoutTemplate {
  * - *models.Workout: Created workout with exercises from template
  * - error: Creation error if any
  */
-func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, userID, templateID string, name string) (*models.Workout, error) {
+func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, userID, templateID, name, routineID string) (*models.Workout, error) {
 	templates := r.getPredefinedTemplates()
 	var template *models.WorkoutTemplate
 
@@ -631,7 +644,7 @@ func (r *WorkoutRepository) CreateWorkoutFromTemplate(ctx context.Context, userI
 	}
 
 	// Create the workout
-	workout, err := r.CreateWorkout(ctx, userID, name)
+	workout, err := r.CreateWorkout(ctx, userID, name, routineID)
 	if err != nil {
 		return nil, err
 	}

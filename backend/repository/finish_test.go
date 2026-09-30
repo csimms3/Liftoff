@@ -282,7 +282,7 @@ func TestCreateExercise_ConcurrentPositionsAreDistinct(t *testing.T) {
 	withDB(t, func(t *testing.T, e *env) {
 		ctx := context.Background()
 		me := e.user(t, "me@example.com")
-		w, _ := e.workouts.CreateWorkout(ctx, me, "W")
+		w, _ := e.workouts.CreateWorkout(ctx, me, "W", "")
 		var wg sync.WaitGroup
 		for i := 0; i < 8; i++ {
 			wg.Add(1)
