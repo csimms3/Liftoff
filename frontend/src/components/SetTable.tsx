@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ApiService, ExerciseSet, SessionExercise } from '../api'
+import { unlockAudio } from '../useRestTimer'
 
 type SetApi = Pick<ApiService, 'patchSet' | 'createSet' | 'deleteSet'>
 type WeightUnit = 'lbs' | 'kg'
@@ -36,6 +37,8 @@ interface SetTableProps {
    *  server confirms it, even if the table has unmounted meanwhile (e.g. the user
    *  switched views mid-save), since the table is rebuilt from that copy. */
   onSetsUpdate: (sessionExerciseId: string, update: (sets: ExerciseSet[]) => ExerciseSet[]) => void
+  /** Called when a set is ticked done (not when it's unticked), e.g. to start the rest timer. */
+  onSetDone?: () => void
 }
 
 const sameSets = (a: ExerciseSet[], b: ExerciseSet[]) =>
@@ -47,7 +50,7 @@ const sameSets = (a: ExerciseSet[], b: ExerciseSet[]) =>
  * a check to mark it done. Edits save when a field loses focus; − and + after the
  * last set remove or add a set for this session.
  */
-export function SetTable({ sessionExercise, api, weightUnit, onError, onSetsUpdate }: SetTableProps) {
+export function SetTable({ sessionExercise, api, weightUnit, onError, onSetsUpdate, onSetDone }: SetTableProps) {
   const [rows, setRows] = useState<Row[]>(() => sessionExercise.sets.map((s) => toRow(s, weightUnit)))
   const [busy, setBusy] = useState(false)
   // Saves for the same set run one after another, so a weight edit followed by a
@@ -143,9 +146,11 @@ export function SetTable({ sessionExercise, api, weightUnit, onError, onSetsUpda
     const done = !row.done
     const { weight, reps, invalid } = changes(row)
     update(row.set.id, (r) => ({ ...r, done }))
+    if (done) unlockAudio() // inside the tap, so the rest beep is allowed on iOS
     const patch = { completed: done, ...(!invalid && { weight, reps }) }
     try {
       saved(await enqueue(row.set.id, () => api.patchSet(row.set.id, patch)))
+      if (done) onSetDone?.() // only a set that actually saved starts the rest
     } catch {
       update(row.set.id, (r) => ({ ...r, done: !done }))
       onError('Failed to update set')

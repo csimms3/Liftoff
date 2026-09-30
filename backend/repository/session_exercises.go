@@ -295,3 +295,20 @@ func (r *SessionRepository) loadSessionExercise(ctx context.Context, userID, id 
 	}
 	return &se, nil
 }
+
+// MaxRestSeconds is the longest rest timer a movement can have.
+const MaxRestSeconds = 3600
+
+// SetMovementRest sets how long the rest timer runs after a set of the movement
+// (0 turns it off). ErrNotFound if the movement isn't userID's.
+func (r *SessionRepository) SetMovementRest(ctx context.Context, userID, movementID string, seconds int) error {
+	tag, err := r.db.Exec(ctx, `UPDATE movements SET rest_seconds = $3, updated_at = $4 WHERE id = $1 AND user_id = $2`,
+		movementID, userID, seconds, time.Now())
+	if err != nil {
+		return fmt.Errorf("set rest: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

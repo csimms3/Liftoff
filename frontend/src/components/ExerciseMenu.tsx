@@ -7,11 +7,13 @@ interface ExerciseMenuProps {
   onMoveUp: () => void
   onMoveDown: () => void
   onReplace: () => void
+  onRest?: () => void
+  restLabel?: string
   onRemove: () => void
 }
 
 /** The ⋯ menu on a session exercise: move up/down, replace, remove. */
-export function ExerciseMenu({ name, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onReplace, onRemove }: ExerciseMenuProps) {
+export function ExerciseMenu({ name, canMoveUp, canMoveDown, onMoveUp, onMoveDown, onReplace, onRest, restLabel, onRemove }: ExerciseMenuProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -43,6 +45,7 @@ export function ExerciseMenu({ name, canMoveUp, canMoveDown, onMoveUp, onMoveDow
           <button type="button" role="menuitem" disabled={!canMoveUp} onClick={act(onMoveUp)}>Move up</button>
           <button type="button" role="menuitem" disabled={!canMoveDown} onClick={act(onMoveDown)}>Move down</button>
           <button type="button" role="menuitem" onClick={act(onReplace)}>Replace…</button>
+          {onRest && <button type="button" role="menuitem" onClick={act(onRest)}>{restLabel ?? 'Rest timer…'}</button>}
           <button type="button" role="menuitem" className="danger" onClick={act(onRemove)}>Remove</button>
         </div>
       )}
