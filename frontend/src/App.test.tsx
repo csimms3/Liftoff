@@ -695,3 +695,121 @@ describe('App — current routine on the Workouts tab', () => {
     expect(screen.getByText('Solo')).toBeInTheDocument()
   })
 })
+
+describe('App — Library Quick Add popup', () => {
+  const tpl = { name: 'Deadlift', category: 'back', default_sets: 5, default_reps: 5, default_weight: 135 }
+  const wk = (id: string, name: string, routine_id: string) => ({ id, name, routine_id, exercises: [], created_at: '', updated_at: '' })
+  const session = { id: 's1', workout_id: 'w2', workout: wk('w2', 'Pull', 'r1'), started_at: '', is_active: true, exercises: [] }
+  const calls: string[] = []
+  let workouts: ReturnType<typeof wk>[]
+  let active: typeof session | null
+  let failAdds: boolean
+
+  beforeEach(() => {
+    calls.length = 0
+    failAdds = false
+    active = null
+    routineState.current = 'r2'
+    routineState.routines = [routineOf('r1', 'Upper'), routineOf('r2', 'Lower')]
+    workouts = [wk('w1', 'Push', 'r1'), wk('w2', 'Pull', 'r1'), wk('w3', 'Legs', 'r2')]
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      const fail = () => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({}) })
+      if (url.includes('/sessions/active')) return active ? json(active) : Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+      if (url.endsWith('/sessions/s1/movements') && method === 'POST') {
+        calls.push('session ' + init?.body)
+        if (failAdds) return fail()
+        return json({ id: 'se9', exercise_id: '', name: 'Deadlift', exercise: { id: '', name: 'Deadlift' }, sets: [], previous: [] }, 201)
+      }
+      if (url.endsWith('/exercises') && method === 'POST') {
+        calls.push('create ' + init?.body)
+        if (failAdds) return fail()
+        return json({ id: 'e9', ...JSON.parse(String(init?.body)), created_at: '', updated_at: '' }, 201)
+      }
+      if (url.endsWith('/workouts')) return json(workouts)
+      if (url.endsWith('/exercise-templates')) return json([tpl])
+      return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+    })
+  })
+
+  const openPopup = async () => {
+    renderWithAuth(<App />)
+    await screen.findByRole('button', { name: 'Legs' }) // data loaded (Legs is in the current routine)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Library' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Quick Add' }))
+    return screen.findByRole('dialog', { name: 'Add to workout' })
+  }
+
+  test('with a session, it is preselected and Add goes to the session', async () => {
+    active = session
+    const dialog = await openPopup()
+    expect(dialog).toHaveTextContent('5 × 5 @ 135 lbs')
+    const select = screen.getByLabelText('Add to') as HTMLSelectElement
+    expect(select.value).toBe('session')
+    expect(select.options[0]).toHaveTextContent('Current session: Pull')
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Added Deadlift to Pull')
+    expect(calls).toEqual(['session {"name":"Deadlift"}'])
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Quick Add' })).toBeInTheDocument() // still on the Library tab
+  })
+
+  test('the dropdown groups workouts by routine', async () => {
+    await openPopup()
+    const groups = [...document.querySelectorAll('.quick-add-dialog optgroup')]
+    expect(groups.map(g => g.getAttribute('label'))).toEqual(['Upper', 'Lower'])
+    expect(groups.map(g => [...g.querySelectorAll('option')].map(o => o.textContent))).toEqual([['Push', 'Pull'], ['Legs']])
+  })
+
+  test('with no session it defaults to the first workout of the current routine, and Add creates it there', async () => {
+    const dialog = await openPopup()
+    expect((screen.getByLabelText('Add to') as HTMLSelectElement).value).toBe('w3')
+    expect(dialog).not.toHaveTextContent('Current session')
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Added Deadlift to Legs')
+    expect(calls).toEqual(['create {"name":"Deadlift","sets":5,"reps":5,"weight":135,"workout_id":"w3"}'])
+  })
+
+  test('with no session it defaults to the selected workout', async () => {
+    routineState.current = 'r1' // so Pull is listed on the Workouts tab
+    renderWithAuth(<App />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Pull' }))
+    await screen.findByText('Current Workout: Pull')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Library' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Quick Add' }))
+    await screen.findByRole('dialog', { name: 'Add to workout' })
+    expect((screen.getByLabelText('Add to') as HTMLSelectElement).value).toBe('w2')
+  })
+
+  test('a failure keeps the popup open and shows the error in it', async () => {
+    failAdds = true
+    await openPopup()
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to add exercise')
+    expect(screen.getByRole('dialog', { name: 'Add to workout' })).toContainElement(screen.getByRole('alert'))
+    expect(screen.getByRole('button', { name: 'Add' })).toBeEnabled() // can retry
+  })
+
+  test('Escape closes it without adding', async () => {
+    await openPopup()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  test('with no workouts it says so and offers no dropdown', async () => {
+    workouts = []
+    routineState.current = null
+    renderWithAuth(<App />)
+    await screen.findByRole('button', { name: '+ Add workout' })
+    fireEvent.click(screen.getAllByRole('button', { name: 'Library' })[0])
+    fireEvent.click(await screen.findByRole('button', { name: 'Quick Add' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Add to workout' })
+    expect(dialog).toHaveTextContent("don't have any workouts")
+    expect(dialog).toHaveTextContent('Workouts tab')
+    expect(screen.queryByLabelText('Add to')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Add' })).toBeNull()
+    expect(screen.queryByText(/select a workout first/i)).toBeNull()
+  })
+})
