@@ -33,6 +33,7 @@ export default function App() {
   const [exerciseTemplates, setExerciseTemplates] = useState<ExerciseTemplate[]>([]);
   const [addingToWorkout, setAddingToWorkout] = useState(false);
   const [routines, setRoutines] = useState<Routine[]>([]);
+  const [currentRoutineId, setCurrentRoutineId] = useState<string | null>(null);
   const [routineTemplates, setRoutineTemplates] = useState<RoutineTemplate[]>([]);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isDinoGameOpen, setIsDinoGameOpen] = useState(false);
@@ -247,6 +248,14 @@ export default function App() {
     }
   }, [apiService]);
 
+  const loadCurrentRoutine = useCallback(async () => {
+    try {
+      setCurrentRoutineId(await apiService.getCurrentRoutineId() ?? null);
+    } catch {
+      setCurrentRoutineId(null);
+    }
+  }, [apiService]);
+
   const loadRoutineTemplates = useCallback(async () => {
     try {
       const data = await apiService.getRoutineTemplates();
@@ -272,6 +281,7 @@ export default function App() {
         await Promise.all([
           loadWorkouts(),
           loadRoutines(),
+          loadCurrentRoutine(),
           loadRoutineTemplates(),
           loadActiveSession(),
           loadExerciseTemplates(),
@@ -283,17 +293,21 @@ export default function App() {
       }
     }
     loadData()
-  }, [loadWorkouts, loadRoutines, loadRoutineTemplates, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
+  }, [loadWorkouts, loadRoutines, loadCurrentRoutine, loadRoutineTemplates, loadActiveSession, loadExerciseTemplates, loadProgressData, loadCompletedSessions])
+
+  const currentRoutine = routines.find(r => r.id === currentRoutineId)
+  // The server orders workouts by routine, then position.
+  const routineWorkouts = workouts.filter(w => w.routine_id === currentRoutineId)
 
   const createWorkout = async () => {
     if (!newWorkoutName.trim()) return
     
     try {
       setLoading(true)
-      await apiService.createWorkout(newWorkoutName.trim())
+      await apiService.createWorkout(newWorkoutName.trim(), currentRoutineId ?? undefined)
       setNewWorkoutName('')
-      // The server decides where it lands (its routine, after that routine's other workouts).
-      await loadWorkouts()
+      // It lands at the end of the current routine. With no routine yet, the server starts "My Workouts".
+      await Promise.all([loadWorkouts(), loadRoutines(), loadCurrentRoutine()])
     } catch {
       setError('Failed to create workout')
     } finally {
@@ -471,12 +485,24 @@ export default function App() {
     try {
       setLoading(true)
       await apiService.createRoutineFromTemplate(templateId, name)
-      await Promise.all([loadRoutines(), loadWorkouts()])
+      // The server makes it current only if it's the user's first routine.
+      await Promise.all([loadRoutines(), loadWorkouts(), loadCurrentRoutine()])
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create routine')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const switchRoutine = async (routineId: string) => {
+    if (routineId === currentRoutineId) return
+    try {
+      await apiService.setCurrentRoutine(routineId)
+      setCurrentRoutineId(routineId)
+      if (currentWorkout && currentWorkout.routine_id !== routineId) setCurrentWorkout(null)
+    } catch {
+      setError('Failed to switch routine')
     }
   }
 
@@ -493,7 +519,8 @@ export default function App() {
         setRoutines(routines.filter(r => r.id !== routineId))
         // Its workouts went with it.
         if (currentWorkout?.routine_id === routineId) setCurrentWorkout(null)
-        await loadWorkouts()
+        // If it was the current one, the server picked another.
+        await Promise.all([loadWorkouts(), loadCurrentRoutine()])
       } catch {
         setError('Failed to delete routine')
       } finally {
@@ -742,7 +769,10 @@ export default function App() {
                   {routines.map(routine => (
                     <div key={routine.id} className="routine-card">
                       <div className="routine-header">
-                        <h3>{routine.name}</h3>
+                        <h3>
+                          {routine.name}
+                          {routine.id === currentRoutineId && <span className="current-badge">Current</span>}
+                        </h3>
                         <button
                           className="btn-delete"
                           onClick={() => deleteRoutine(routine.id)}
@@ -753,6 +783,11 @@ export default function App() {
                       </div>
                       {routine.description && (
                         <p className="routine-desc">{routine.description}</p>
+                      )}
+                      {routine.id !== currentRoutineId && (
+                        <button className="btn-primary btn-sm use-routine" onClick={() => switchRoutine(routine.id)}>
+                          Use this routine
+                        </button>
                       )}
                       <div className="routine-workouts">
                         {routine.workouts?.sort((a, b) => a.slot_order - b.slot_order).map((rw, idx) => {
@@ -805,16 +840,31 @@ export default function App() {
               </div>
 
               <div className="workouts-section">
-                <h2>Your Workouts</h2>
+                <div className="routine-switch">
+                  <h2>{currentRoutine?.name ?? 'Workouts'}</h2>
+                  {routines.length > 1 && (
+                    <select
+                      aria-label="Switch routine"
+                      value={currentRoutineId ?? ''}
+                      onChange={e => switchRoutine(e.target.value)}
+                    >
+                      {!currentRoutine && <option value="" disabled>Choose a routine</option>}
+                      {routines.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                    </select>
+                  )}
+                </div>
+                {currentRoutine && <p className="section-desc">Workouts in this routine</p>}
                 {loading ? (
                   <div className="loading-state">
                     <p>Loading workouts...</p>
                   </div>
-                ) : workouts.length === 0 ? (
-                  <p className="empty-state">No workouts yet. Create your first workout above!</p>
+                ) : routines.length === 0 ? (
+                  <p className="empty-state">No routine yet: create a workout to start one, or pick a template on the Routines tab.</p>
+                ) : routineWorkouts.length === 0 ? (
+                  <p className="empty-state">No workouts in this routine yet. Create one above!</p>
                 ) : (
                   <div className="workout-cards">
-                    {workouts.map(workout => (
+                    {routineWorkouts.map(workout => (
                       <div
                         key={workout.id}
                         className={`workout-card selectable${currentWorkout?.id === workout.id ? ' selected' : ''}`}
