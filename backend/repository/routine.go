@@ -2,12 +2,15 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"liftoff/backend/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -34,8 +37,10 @@ func NewRoutineRepository(db *pgxpool.Pool, workout *WorkoutRepository) *Routine
 	return &RoutineRepository{db: db, workout: workout}
 }
 
-// CreateRoutine creates a routine with the given workouts in order, in one
-// transaction. Every workout must belong to userID (ErrNotFound otherwise).
+// CreateRoutine creates a routine and moves the given workouts into it, in
+// order, in one transaction. Every workout must belong to userID (ErrNotFound
+// otherwise); a workout that was in another routine leaves it. The new routine
+// becomes the user's current one if they had none.
 func (r *RoutineRepository) CreateRoutine(ctx context.Context, userID, name, description string, workoutIDs []string) (*models.Routine, error) {
 	id := uuid.New().String()
 	err := withTx(ctx, r.db, func(tx tx) error {
@@ -47,7 +52,10 @@ func (r *RoutineRepository) CreateRoutine(ctx context.Context, userID, name, des
 			VALUES ($1, $2, $3, $4, $5, $6)`, id, userID, name, description, now, now); err != nil {
 			return fmt.Errorf("create routine: %w", err)
 		}
-		return replaceRoutineWorkouts(ctx, tx, id, workoutIDs)
+		if err := tx.Exec(ctx, `UPDATE users SET current_routine_id = $1 WHERE id = $2 AND current_routine_id IS NULL`, id, userID); err != nil {
+			return fmt.Errorf("set current routine: %w", err)
+		}
+		return placeWorkouts(ctx, tx, id, workoutIDs)
 	})
 	if err != nil {
 		return nil, err
@@ -66,17 +74,106 @@ func checkWorkoutsOwned(ctx context.Context, tx tx, userID string, workoutIDs []
 	return nil
 }
 
-// replaceRoutineWorkouts sets the routine's workouts to workoutIDs, in order.
-func replaceRoutineWorkouts(ctx context.Context, tx tx, routineID string, workoutIDs []string) error {
-	if err := tx.Exec(ctx, `DELETE FROM routine_workouts WHERE routine_id = $1`, routineID); err != nil {
-		return fmt.Errorf("clear routine workouts: %w", err)
+// placeWorkouts puts workoutIDs (already checked as the user's) at the front of
+// the routine, in that order, moving them out of any other routine. Workouts
+// already in the routine and not listed keep their relative order after them.
+// Positions end up 1..n.
+func placeWorkouts(ctx context.Context, tx tx, routineID string, workoutIDs []string) error {
+	seen := make(map[string]bool, len(workoutIDs))
+	ids := make([]string, 0, len(workoutIDs))
+	for _, wid := range workoutIDs {
+		if !seen[wid] {
+			seen[wid] = true
+			ids = append(ids, wid)
+		}
 	}
 	now := time.Now()
-	for i, wid := range workoutIDs {
-		if err := tx.Exec(ctx, `INSERT INTO routine_workouts (id, routine_id, workout_id, slot_order, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, $6)`, uuid.New().String(), routineID, wid, i+1, now, now); err != nil {
-			return fmt.Errorf("add routine workout: %w", err)
+	for i, wid := range ids {
+		if err := tx.Exec(ctx, `UPDATE workouts SET routine_id = $1, position = $2, updated_at = $3 WHERE id = $4`,
+			routineID, i+1, now, wid); err != nil {
+			return fmt.Errorf("place workout: %w", err)
 		}
+	}
+	if err := tx.Exec(ctx, `
+		UPDATE workouts w SET position = $1 + r.n
+		FROM (
+			SELECT id, ROW_NUMBER() OVER (ORDER BY position, created_at, id) AS n
+			FROM workouts WHERE routine_id = $2 AND NOT (id = ANY($3::text[]))
+		) r
+		WHERE w.id = r.id`, len(ids), routineID, ids); err != nil {
+		return fmt.Errorf("order remaining workouts: %w", err)
+	}
+	return nil
+}
+
+// resolveRoutine returns the routine a new workout goes into: routineID when
+// given (ErrNotFound unless it is userID's), otherwise the user's current
+// routine. A user with no current routine gets their oldest one, or a new "My
+// Workouts", made current. The user row is locked so concurrent calls agree.
+func resolveRoutine(ctx context.Context, tx tx, userID, routineID string) (string, error) {
+	var current *string
+	if err := tx.QueryRow(ctx, `SELECT current_routine_id FROM users WHERE id = $1 FOR UPDATE`, []any{userID}, &current); err != nil {
+		return "", err
+	}
+	if routineID != "" {
+		var one int
+		if err := tx.QueryRow(ctx, `SELECT 1 FROM routines WHERE id = $1 AND user_id = $2`, []any{routineID, userID}, &one); err != nil {
+			return "", err
+		}
+		return routineID, nil
+	}
+	if current != nil {
+		return *current, nil
+	}
+	var id string
+	err := tx.QueryRow(ctx, `SELECT id FROM routines WHERE user_id = $1 ORDER BY created_at, id LIMIT 1`, []any{userID}, &id)
+	if errors.Is(err, ErrNotFound) {
+		id = uuid.New().String()
+		now := time.Now()
+		err = tx.Exec(ctx, `INSERT INTO routines (id, user_id, name, description, created_at, updated_at)
+			VALUES ($1, $2, $3, '', $4, $5)`, id, userID, defaultRoutineName, now, now)
+	}
+	if err != nil {
+		return "", fmt.Errorf("default routine: %w", err)
+	}
+	if err := tx.Exec(ctx, `UPDATE users SET current_routine_id = $1 WHERE id = $2`, id, userID); err != nil {
+		return "", fmt.Errorf("set current routine: %w", err)
+	}
+	return id, nil
+}
+
+// defaultRoutineName names the routine created for a user who has none.
+const defaultRoutineName = "My Workouts"
+
+// GetCurrentRoutineID returns the user's current routine id, or "" if they have
+// no routines.
+func (r *RoutineRepository) GetCurrentRoutineID(ctx context.Context, userID string) (string, error) {
+	var current *string
+	err := r.db.QueryRow(ctx, `SELECT current_routine_id FROM users WHERE id = $1`, userID).Scan(&current)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if current == nil {
+		return "", nil
+	}
+	return *current, nil
+}
+
+// SetCurrentRoutine makes routineID the user's current routine (ErrNotFound
+// unless it is theirs).
+func (r *RoutineRepository) SetCurrentRoutine(ctx context.Context, userID, routineID string) error {
+	tag, err := r.db.Exec(ctx, `
+		UPDATE users SET current_routine_id = $1
+		WHERE id = $2 AND EXISTS (SELECT 1 FROM routines WHERE id = $3 AND user_id = $4)`,
+		routineID, userID, routineID, userID)
+	if err != nil {
+		return fmt.Errorf("set current routine: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -107,10 +204,12 @@ func (r *RoutineRepository) GetRoutines(ctx context.Context, userID string) ([]*
 	return routines, nil
 }
 
+// getRoutineWorkouts lists a routine's workouts in order. The RoutineWorkout id
+// is the workout's id (there is no separate link row any more).
 func (r *RoutineRepository) getRoutineWorkouts(ctx context.Context, routineID string) ([]*models.RoutineWorkout, error) {
 	rows, err := r.db.Query(ctx, `
-		SELECT rw.id, rw.routine_id, rw.workout_id, rw.slot_order, rw.created_at, rw.updated_at
-		FROM routine_workouts rw WHERE rw.routine_id = $1 ORDER BY rw.slot_order
+		SELECT id, routine_id, position, created_at, updated_at
+		FROM workouts WHERE routine_id = $1 ORDER BY position, created_at, id
 	`, routineID)
 	if err != nil {
 		return nil, err
@@ -119,12 +218,13 @@ func (r *RoutineRepository) getRoutineWorkouts(ctx context.Context, routineID st
 	var list []*models.RoutineWorkout
 	for rows.Next() {
 		var rw models.RoutineWorkout
-		if err := rows.Scan(&rw.ID, &rw.RoutineID, &rw.WorkoutID, &rw.SlotOrder, &rw.CreatedAt, &rw.UpdatedAt); err != nil {
+		if err := rows.Scan(&rw.WorkoutID, &rw.RoutineID, &rw.SlotOrder, &rw.CreatedAt, &rw.UpdatedAt); err != nil {
 			return nil, err
 		}
+		rw.ID = rw.WorkoutID
 		list = append(list, &rw)
 	}
-	return list, nil
+	return list, rows.Err()
 }
 
 func (r *RoutineRepository) GetRoutine(ctx context.Context, userID, id string) (*models.Routine, error) {
@@ -147,8 +247,11 @@ func (r *RoutineRepository) GetRoutine(ctx context.Context, userID, id string) (
 }
 
 // UpdateRoutine sets the routine's name and description and, when workoutIDs is
-// non-nil, replaces its workouts, all in one transaction. The routine and every
-// workout must belong to userID (ErrNotFound otherwise).
+// non-nil, puts those workouts first in the routine in that order (moving them
+// out of their old routines), all in one transaction. Workouts already in the
+// routine and not listed stay, after the listed ones: a workout always belongs
+// to a routine, so it leaves one only by being moved into another (or deleted).
+// The routine and every workout must belong to userID (ErrNotFound otherwise).
 func (r *RoutineRepository) UpdateRoutine(ctx context.Context, userID, id, name, description string, workoutIDs []string) error {
 	return withTx(ctx, r.db, func(tx tx) error {
 		var one int
@@ -165,13 +268,34 @@ func (r *RoutineRepository) UpdateRoutine(ctx context.Context, userID, id, name,
 		if err := checkWorkoutsOwned(ctx, tx, userID, workoutIDs); err != nil {
 			return err
 		}
-		return replaceRoutineWorkouts(ctx, tx, id, workoutIDs)
+		return placeWorkouts(ctx, tx, id, workoutIDs)
 	})
 }
 
+// DeleteRoutine deletes the routine and its workouts (logged sessions keep their
+// names). If it was the user's current routine, their oldest remaining routine
+// becomes current, or none if they have no more. ErrNotFound unless it is theirs.
 func (r *RoutineRepository) DeleteRoutine(ctx context.Context, userID, id string) error {
-	_, err := r.db.Exec(ctx, `DELETE FROM routines WHERE id = $1 AND user_id = $2`, id, userID)
-	return err
+	return withTx(ctx, r.db, func(tx tx) error {
+		var one int
+		if err := tx.QueryRow(ctx, `SELECT 1 FROM users WHERE id = $1 FOR UPDATE`, []any{userID}, &one); err != nil {
+			return err
+		}
+		if err := tx.QueryRow(ctx, `SELECT 1 FROM routines WHERE id = $1 AND user_id = $2`, []any{id, userID}, &one); err != nil {
+			return err
+		}
+		if err := tx.Exec(ctx, `DELETE FROM routines WHERE id = $1 AND user_id = $2`, id, userID); err != nil {
+			return fmt.Errorf("delete routine: %w", err)
+		}
+		// The FK cleared current_routine_id if it pointed here.
+		if err := tx.Exec(ctx, `
+			UPDATE users SET current_routine_id =
+				(SELECT id FROM routines WHERE user_id = $1 ORDER BY created_at, id LIMIT 1)
+			WHERE id = $2 AND current_routine_id IS NULL`, userID, userID); err != nil {
+			return fmt.Errorf("fall back current routine: %w", err)
+		}
+		return nil
+	})
 }
 
 func (r *RoutineRepository) GetRoutineTemplates() []RoutineTemplate {
@@ -195,22 +319,34 @@ func (r *RoutineRepository) CreateFromTemplate(ctx context.Context, userID, temp
 		name = tpl.Name
 	}
 
-	var workoutIDs []string
+	routine, err := r.CreateRoutine(ctx, userID, name, tpl.Description, nil)
+	if err != nil {
+		return nil, err
+	}
+	if err := r.fillFromTemplate(ctx, userID, routine.ID, tpl); err != nil {
+		// Deleting the routine deletes the workouts made so far.
+		if derr := r.DeleteRoutine(ctx, userID, routine.ID); derr != nil {
+			log.Printf("cleanup of routine %s after failed template create: %v", routine.ID, derr)
+		}
+		return nil, err
+	}
+	return r.GetRoutine(ctx, userID, routine.ID)
+}
+
+func (r *RoutineRepository) fillFromTemplate(ctx context.Context, userID, routineID string, tpl *RoutineTemplate) error {
 	for _, w := range tpl.Workouts {
-		workout, err := r.workout.CreateWorkout(ctx, userID, w.Name)
+		workout, err := r.workout.CreateWorkout(ctx, userID, w.Name, routineID)
 		if err != nil {
-			return nil, fmt.Errorf("create workout %s: %w", w.Name, err)
+			return fmt.Errorf("create workout %s: %w", w.Name, err)
 		}
 		for _, ex := range w.Exercises {
 			ex.WorkoutID = workout.ID
 			if err := r.workout.CreateExercise(ctx, userID, &ex); err != nil {
-				return nil, fmt.Errorf("create exercise %s: %w", ex.Name, err)
+				return fmt.Errorf("create exercise %s: %w", ex.Name, err)
 			}
 		}
-		workoutIDs = append(workoutIDs, workout.ID)
 	}
-
-	return r.CreateRoutine(ctx, userID, name, tpl.Description, workoutIDs)
+	return nil
 }
 
 func getRoutineTemplates() []RoutineTemplate {

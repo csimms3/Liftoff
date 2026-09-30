@@ -510,3 +510,74 @@ describe('App — workout editor', () => {
     expect(screen.getByText('5 × 10 @ 100 lbs')).toBeInTheDocument()
   })
 })
+
+describe('App — deleting a routine', () => {
+  const wk = (id: string, name: string, routine_id: string) => ({ id, routine_id, name, exercises: [], created_at: '', updated_at: '' })
+  let workoutsOnServer: ReturnType<typeof wk>[]
+  let deleted: string[]
+
+  beforeEach(() => {
+    deleted = []
+    workoutsOnServer = [wk('w1', 'Push', 'r1'), wk('w2', 'Pull', 'r1'), wk('w3', 'Solo', 'r2')]
+    mockFetch.mockImplementation((url: string, init?: RequestInit) => {
+      const json = (body: unknown, status = 200) => Promise.resolve({ ok: true, status, json: () => Promise.resolve(body) })
+      const method = init?.method ?? 'GET'
+      const del = url.match(/\/routines\/(\w+)$/)
+      if (del && method === 'DELETE') {
+        deleted.push(del[1])
+        workoutsOnServer = workoutsOnServer.filter(w => w.routine_id !== del[1])
+        return json({ message: 'ok' })
+      }
+      if (url.endsWith('/routines')) {
+        return json([
+          { id: 'r1', name: 'Split', description: '', created_at: '', updated_at: '',
+            workouts: [
+              { id: 'w1', routine_id: 'r1', workout_id: 'w1', slot_order: 1 },
+              { id: 'w2', routine_id: 'r1', workout_id: 'w2', slot_order: 2 },
+            ] },
+          { id: 'r2', name: 'Other', description: '', created_at: '', updated_at: '',
+            workouts: [{ id: 'w3', routine_id: 'r2', workout_id: 'w3', slot_order: 1 }] },
+        ])
+      }
+      if (url.endsWith('/workouts')) return json(workoutsOnServer)
+      if (url.match(/\/workouts\/\w+\/exercises$/)) return json([])
+      if (url.endsWith('/sessions/active')) return Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({}) })
+      return json([])
+    })
+  })
+
+  test('the confirm names the routine and its workouts; the Workouts tab refreshes after', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderWithAuth(<App />)
+    await screen.findByText('Push')
+    expect(screen.getByText('Solo')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Routines' })[0])
+    const buttons = await screen.findAllByRole('button', { name: '×' })
+    fireEvent.click(buttons[0])
+
+    expect(confirm).toHaveBeenCalledOnce()
+    const text = confirm.mock.calls[0][0] as string
+    expect(text).toContain('"Split"')
+    expect(text).toContain('2 workouts will be deleted')
+    expect(text).toContain('history is kept')
+    await waitFor(() => expect(deleted).toEqual(['r1']))
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Workouts' })[0])
+    await screen.findByText('Solo')
+    await waitFor(() => expect(screen.queryByText('Push')).toBeNull())
+    expect(screen.queryByText('Pull')).toBeNull()
+    confirm.mockRestore()
+  })
+
+  test('declining the confirm deletes nothing', async () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false)
+    renderWithAuth(<App />)
+    await screen.findByText('Push')
+    fireEvent.click(screen.getAllByRole('button', { name: 'Routines' })[0])
+    fireEvent.click((await screen.findAllByRole('button', { name: '×' }))[0])
+    expect(confirm).toHaveBeenCalledOnce()
+    expect(deleted).toEqual([])
+    confirm.mockRestore()
+  })
+})

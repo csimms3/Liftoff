@@ -18,6 +18,15 @@ import (
 	"github.com/joho/godotenv"
 )
 
+// currentRoutineResponse is the body of the current-routine endpoints: the id, or
+// null when the user has no routine.
+func currentRoutineResponse(id string) gin.H {
+	if id == "" {
+		return gin.H{"routine_id": nil}
+	}
+	return gin.H{"routine_id": id}
+}
+
 // serverError logs err and sends a generic message, so SQL and driver details
 // never reach the client.
 func serverError(c *gin.Context, msg string, err error) {
@@ -140,12 +149,18 @@ func main() {
 		authAPI.POST("/workouts", func(c *gin.Context) {
 			var input struct {
 				Name string `json:"name" binding:"required"`
+				// RoutineID is optional: the user's current routine by default.
+				RoutineID string `json:"routine_id"`
 			}
 			if err := c.ShouldBindJSON(&input); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Workout name is required"})
 				return
 			}
-			workout, err := workoutRepo.CreateWorkout(c.Request.Context(), userID(c), input.Name)
+			workout, err := workoutRepo.CreateWorkout(c.Request.Context(), userID(c), input.Name, input.RoutineID)
+			if errors.Is(err, repository.ErrNotFound) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Routine not found"})
+				return
+			}
 			if err != nil {
 				log.Printf("Error creating workout: %v", err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create workout"})
@@ -209,6 +224,36 @@ func main() {
 			c.JSON(http.StatusCreated, routine)
 		})
 
+		// The routine the main page shows; routine_id is null when the user has none.
+		authAPI.GET("/routines/current", func(c *gin.Context) {
+			id, err := routineRepo.GetCurrentRoutineID(c.Request.Context(), userID(c))
+			if err != nil {
+				serverError(c, "Failed to fetch current routine", err)
+				return
+			}
+			c.JSON(http.StatusOK, currentRoutineResponse(id))
+		})
+
+		authAPI.PUT("/routines/current", func(c *gin.Context) {
+			var input struct {
+				RoutineID string `json:"routine_id" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&input); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "routine_id is required"})
+				return
+			}
+			err := routineRepo.SetCurrentRoutine(c.Request.Context(), userID(c), input.RoutineID)
+			if errors.Is(err, repository.ErrNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Routine not found"})
+				return
+			}
+			if err != nil {
+				serverError(c, "Failed to set current routine", err)
+				return
+			}
+			c.JSON(http.StatusOK, currentRoutineResponse(input.RoutineID))
+		})
+
 		authAPI.GET("/routines/:id", func(c *gin.Context) {
 			routine, err := routineRepo.GetRoutine(c.Request.Context(), userID(c), c.Param("id"))
 			if err != nil {
@@ -259,9 +304,12 @@ func main() {
 
 		authAPI.DELETE("/routines/:id", func(c *gin.Context) {
 			err := routineRepo.DeleteRoutine(c.Request.Context(), userID(c), c.Param("id"))
+			if errors.Is(err, repository.ErrNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Routine not found"})
+				return
+			}
 			if err != nil {
-				log.Printf("Error deleting routine: %v", err)
-				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete routine"})
+				serverError(c, "Failed to delete routine", err)
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{"message": "Routine deleted successfully"})
@@ -314,13 +362,18 @@ func main() {
 
 		authAPI.POST("/workout-templates/:id/create", func(c *gin.Context) {
 			var req struct {
-				Name string `json:"name"`
+				Name      string `json:"name"`
+				RoutineID string `json:"routine_id"`
 			}
 			if err := c.ShouldBindJSON(&req); err != nil {
 				badRequest(c)
 				return
 			}
-			workout, err := workoutRepo.CreateWorkoutFromTemplate(c.Request.Context(), userID(c), c.Param("id"), req.Name)
+			workout, err := workoutRepo.CreateWorkoutFromTemplate(c.Request.Context(), userID(c), c.Param("id"), req.Name, req.RoutineID)
+			if errors.Is(err, repository.ErrNotFound) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Routine not found"})
+				return
+			}
 			if errors.Is(err, repository.ErrTemplateNotFound) {
 				c.JSON(http.StatusNotFound, gin.H{"error": "Workout template not found"})
 				return
