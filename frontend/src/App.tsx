@@ -49,12 +49,6 @@ export default function App() {
     return (savedTheme as 'light' | 'dark') || 'light';
   });
 
-  type MenuStyle = 'minimal' | 'bold' | 'stacked';
-  const [menuStyle, setMenuStyle] = useState<MenuStyle>(() => {
-    const saved = localStorage.getItem('liftoff-menu-style');
-    return (saved === 'bold' || saved === 'stacked' ? saved : 'minimal') as MenuStyle;
-  });
-
   // Weight unit state
   const [weightUnit, setWeightUnit] = useState<'lbs' | 'kg'>(() => {
     const savedUnit = localStorage.getItem('liftoff-weight-unit');
@@ -71,10 +65,6 @@ export default function App() {
     document.body.setAttribute('data-theme', theme);
     localStorage.setItem('liftoff-theme', theme);
   }, [theme]);
-
-  useEffect(() => {
-    localStorage.setItem('liftoff-menu-style', menuStyle);
-  }, [menuStyle]);
 
   useEffect(() => {
     localStorage.setItem('liftoff-weight-unit', weightUnit);
@@ -602,7 +592,7 @@ export default function App() {
   };
 
   return (
-    <div className="app" data-menu-style={menuStyle}>
+    <div className="app">
       <header className="app-header">
         <div className="header-content">
           <div className="header-left">
@@ -610,32 +600,6 @@ export default function App() {
             <p>Track your workouts and build strength</p>
           </div>
           <div className="header-controls">
-            <div className="menu-style-swap" role="group" aria-label="Menu style">
-              <button
-                className={`menu-style-btn ${menuStyle === 'minimal' ? 'active' : ''}`}
-                onClick={() => setMenuStyle('minimal')}
-                title="Minimal pill"
-                aria-pressed={menuStyle === 'minimal'}
-              >
-                ○
-              </button>
-              <button
-                className={`menu-style-btn ${menuStyle === 'bold' ? 'active' : ''}`}
-                onClick={() => setMenuStyle('bold')}
-                title="Bold tabs"
-                aria-pressed={menuStyle === 'bold'}
-              >
-                ▬
-              </button>
-              <button
-                className={`menu-style-btn ${menuStyle === 'stacked' ? 'active' : ''}`}
-                onClick={() => setMenuStyle('stacked')}
-                title="Stacked cards"
-                aria-pressed={menuStyle === 'stacked'}
-              >
-                ▢
-              </button>
-            </div>
             <button 
               className="theme-toggle"
               onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
@@ -676,17 +640,6 @@ export default function App() {
                 >
                   <option value="light">Light</option>
                   <option value="dark">Dark</option>
-                </select>
-              </div>
-              <div className="setting-item">
-                <label>Menu style</label>
-                <select 
-                  value={menuStyle} 
-                  onChange={(e) => setMenuStyle(e.target.value as MenuStyle)}
-                >
-                  <option value="minimal">Minimal pill</option>
-                  <option value="bold">Bold tabs</option>
-                  <option value="stacked">Stacked cards</option>
                 </select>
               </div>
               <div className="setting-item">
